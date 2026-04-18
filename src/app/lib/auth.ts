@@ -2,8 +2,9 @@ import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "./prisma";
 import { envVars } from "../config/env";
-// import { sendEmail } from "../utils/email";
-// import { bearer, emailOTP } from "better-auth/plugins";
+import { bearer, emailOTP } from "better-auth/plugins";
+import { Role, UserStatus } from "../../generated/prisma/enums";
+import { sendEmail } from "../utils/email";
 
 export const auth = betterAuth({
     baseURL: envVars.BETTER_AUTH_URL,
@@ -19,15 +20,15 @@ export const auth = betterAuth({
 
     socialProviders: {
         google: {
-            clientId: envVars.GOOGLE_CLIENT_ID,
-            clientSecret: envVars.GOOGLE_CLIENT_SECRET,
+            clientId: envVars.GOOGLE.CLIENT_ID,
+            clientSecret: envVars.GOOGLE.CLIENT_SECRET,
             accessType: "offline",
             prompt: "select_account",
             // callbackUrl: envVars.GOOGLE_CALLBACK_URL, eta dibo na ekhane
             mapProfileToUser: () => {
                 return {
-                    role: "CUSTOMER", // Role.PATIENT,
-                    status: "ACTIVE", //UserStatus.ACTIVE,
+                    role: Role.CUSTOMER,
+                    status: UserStatus.ACTIVE,
                     needPasswordChange: false,
                     emailVerified: true,
                     isDeleted: false,
@@ -43,80 +44,80 @@ export const auth = betterAuth({
         autoSignInAfterVerification: true,
     },
 
-    // plugins: [
-    //     bearer(),
-    //     emailOTP({
-    //         overrideDefaultEmailVerification: true,
-    //         async sendVerificationOTP({ email, otp, type }) {
-    //             if (type === "email-verification") {
-    //                 const user = await prisma.user.findUnique({
-    //                     where: {
-    //                         email,
-    //                     },
-    //                 });
+    plugins: [
+        bearer(),
+        emailOTP({
+            overrideDefaultEmailVerification: true,
+            async sendVerificationOTP({ email, otp, type }) {
+                if (type === "email-verification") {
+                    const user = await prisma.user.findUnique({
+                        where: {
+                            email,
+                        },
+                    });
 
-    //                 if (!user) {
-    //                     console.error(
-    //                         `User with email ${email} not found. Cannot send verification OTP.`,
-    //                     );
-    //                     return;
-    //                 }
+                    if (!user) {
+                        console.error(
+                            `User with email ${email} not found. Cannot send verification OTP.`,
+                        );
+                        return;
+                    }
 
-    //                 if (user && user.role === Role.SUPER_ADMIN) {
-    //                     console.log(
-    //                         `User with email ${email} is a super admin. Skipping sending verification OTP.`,
-    //                     );
-    //                     return;
-    //                 }
+                    if (user && user.role === Role.SUPER_ADMIN) {
+                        console.log(
+                            `User with email ${email} is a super admin. Skipping sending verification OTP.`,
+                        );
+                        return;
+                    }
 
-    //                 if (user && !user.emailVerified) {
-    //                     sendEmail({
-    //                         to: email,
-    //                         subject: "Verify your email",
-    //                         templateName: "otp",
-    //                         templateData: {
-    //                             name: user.name,
-    //                             otp,
-    //                         },
-    //                     });
-    //                 }
-    //             } else if (type === "forget-password") {
-    //                 const user = await prisma.user.findUnique({
-    //                     where: {
-    //                         email,
-    //                     },
-    //                 });
+                    if (user && !user.emailVerified) {
+                        sendEmail({
+                            to: email,
+                            subject: "Verify your email",
+                            templateName: "otp",
+                            templateData: {
+                                name: user.name,
+                                otp,
+                            },
+                        });
+                    }
+                } else if (type === "forget-password") {
+                    const user = await prisma.user.findUnique({
+                        where: {
+                            email,
+                        },
+                    });
 
-    //                 if (user) {
-    //                     sendEmail({
-    //                         to: email,
-    //                         subject: "Password Reset OTP",
-    //                         templateName: "otp",
-    //                         templateData: {
-    //                             name: user.name,
-    //                             otp,
-    //                         },
-    //                     });
-    //                 }
-    //             }
-    //         },
-    //         expiresIn: 2 * 60, // 2 minutes in seconds
-    //         otpLength: 6,
-    //     }),
-    // ],
+                    if (user) {
+                        sendEmail({
+                            to: email,
+                            subject: "Password Reset OTP",
+                            templateName: "otp",
+                            templateData: {
+                                name: user.name,
+                                otp,
+                            },
+                        });
+                    }
+                }
+            },
+            expiresIn: 2 * 60, // 2 minutes in seconds
+            otpLength: 6,
+        }),
+    ],
 
     user: {
         additionalFields: {
             role: {
                 type: "string",
                 required: true,
-                defaultValue: "CUSTOMER",
+                defaultValue: Role.CUSTOMER,
             },
 
             status: {
                 type: "string",
                 required: true,
-                defaultValue: "ACTIVE",
+                defaultValue: UserStatus.ACTIVE,
             },
 
             needPasswordChange: {

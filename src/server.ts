@@ -1,19 +1,21 @@
 import { Server } from "http";
 import app from "./app";
-// import { envVars } from "./app/config/env";
+import { envVars } from "./app/config/env";
 // import { seedSuperAdmin } from "./app/utils/seed";
 
 let server: Server;
 const bootstrap = async () => {
     try {
         // await seedSuperAdmin();
-        server = app.listen(5000, () => {  // envVars.PORT
-            console.log(`Server is running on http://localhost:${5000}`);
+        server = app.listen(envVars.PORT, () => {
+            console.log(
+                `Server is running on http://localhost:${envVars.PORT}`,
+            );
         });
     } catch (error) {
-        console.error('Failed to start server:', error);
+        console.error("Failed to start server:", error);
     }
-}
+};
 
 // SIGTERM signal handler
 process.on("SIGTERM", () => {
@@ -25,8 +27,7 @@ process.on("SIGTERM", () => {
         });
     }
     process.exit(1);
-
-})
+});
 
 // SIGINT signal handler
 process.on("SIGINT", () => {
@@ -41,15 +42,15 @@ process.on("SIGINT", () => {
 });
 
 //uncaught exception handler for synchronous code
-process.on('uncaughtException', (error) => {
+process.on("uncaughtException", (error) => {
     console.log("Uncaught Exception Detected... Shutting down server", error);
     if (server) {
         server.close(() => {
             process.exit(1);
-        })
+        });
     }
     process.exit(1);
-})
+});
 
 // unhandled rejection handler for asynchronous code
 process.on("unhandledRejection", (error) => {
@@ -57,9 +58,9 @@ process.on("unhandledRejection", (error) => {
     if (server) {
         server.close(() => {
             process.exit(1);
-        })
+        });
     }
     process.exit(1);
-})
+});
 
 bootstrap();

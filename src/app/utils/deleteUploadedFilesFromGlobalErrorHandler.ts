@@ -28,7 +28,6 @@ export const deleteUploadedFilesFromGlobalErrorHandler = async (req: Request) =>
         }
 
         if (filesToDelete.length > 0) {
-
             await Promise.all(
                 filesToDelete.map(url => deleteFileFromCloudinary(url))
             )

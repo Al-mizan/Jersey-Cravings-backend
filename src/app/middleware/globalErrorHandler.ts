@@ -7,7 +7,7 @@ import z from "zod";
 import { TErrorResponse, TErrorSources } from "../interface/error.interface";
 import { handleZodError } from "../errorHelpers/handleZodError";
 import AppError from "../errorHelpers/AppError";
-import { deleteFileFromCloudinary } from "../config/cloudinary.config";
+// import { deleteFileFromCloudinary } from "../config/cloudinary.config";
 import { deleteUploadedFilesFromGlobalErrorHandler } from "../utils/deleteUploadedFilesFromGlobalErrorHandler";
 import { Prisma } from "../../generated/prisma/client";
 import { handlePrismaClientKnownRequestError, handlePrismaClientUnknownError, handlePrismaClientValidationError, handlerPrismaClientInitializationError, handlerPrismaClientRustPanicError } from "../errorHelpers/handlePrismaErrors";

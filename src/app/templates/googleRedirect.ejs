@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Login</title>
+    <style>
+        :root {
+            color-scheme: light;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+            font-family: Inter, Arial, Helvetica, sans-serif;
+            background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+            color: #0f172a;
+        }
+
+        .card {
+            width: 100%;
+            max-width: 460px;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            padding: 28px;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+            text-align: center;
+        }
+
+        .loader {
+            width: 44px;
+            height: 44px;
+            border-radius: 999px;
+            border: 4px solid #e2e8f0;
+            border-top-color: #2563eb;
+            margin: 0 auto 18px;
+            animation: spin 1s linear infinite;
+        }
+
+        .title {
+            margin: 0;
+            font-size: 22px;
+            line-height: 1.35;
+        }
+
+        .desc {
+            margin: 12px 0 0;
+            font-size: 15px;
+            line-height: 1.7;
+            color: #475569;
+        }
+
+        .status {
+            margin-top: 18px;
+            display: inline-block;
+            font-size: 12px;
+            color: #1d4ed8;
+            background: #dbeafe;
+            border: 1px solid #bfdbfe;
+            border-radius: 999px;
+            padding: 6px 10px;
+        }
+
+        .error {
+            border-color: #fecaca;
+            background: #fef2f2;
+        }
+
+        .error .title {
+            color: #b91c1c;
+        }
+
+        .error .desc {
+            color: #7f1d1d;
+        }
+
+        .actions {
+            margin-top: 18px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            border: 0;
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .btn-primary {
+            background: #2563eb;
+            color: #ffffff;
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #0f172a;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="card" id="state-card" role="status" aria-live="polite">
+        <div class="loader" id="loader" aria-hidden="true"></div>
+        <h1 class="title" id="title">Redirecting to Google</h1>
+        <p class="desc" id="desc">Please wait while we securely connect your account.</p>
+        <span class="status" id="status">Authentication in progress</span>
+        <div class="actions" id="actions" style="display: none;">
+            <button class="btn btn-primary" id="retry-btn" type="button">Try Again</button>
+            <button class="btn btn-secondary" id="back-btn" type="button">Go Back</button>
+        </div>
+    </div>
+</body>
+<script>
+    const card = document.getElementById("state-card");
+    const loader = document.getElementById("loader");
+    const title = document.getElementById("title");
+    const desc = document.getElementById("desc");
+    const status = document.getElementById("status");
+    const actions = document.getElementById("actions");
+    const retryBtn = document.getElementById("retry-btn");
+    const backBtn = document.getElementById("back-btn");
+
+    const showErrorState = (message) => {
+        card.classList.add("error");
+        loader.style.display = "none";
+        status.style.display = "none";
+        actions.style.display = "flex";
+        title.textContent = "Unable to redirect to Google";
+        desc.textContent = message || "Something went wrong. Please try again.";
+    };
+
+    const startRedirect = async () => {
+        card.classList.remove("error");
+        loader.style.display = "block";
+        status.style.display = "inline-block";
+        actions.style.display = "none";
+        title.textContent = "Redirecting to Google";
+        desc.textContent = "Please wait while we securely connect your account.";
+
+        try {
+            const response = await fetch("<%= betterAuthUrl %>/api/auth/sign-in/social", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                credentials: "include",
+                body: JSON.stringify({
+                    provider: "google",
+                    callbackURL: "<%= callbackURL %>"
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error("Server error");
+            }
+
+            const data = await response.json();
+
+            if (data.url && data.url.startsWith("https://accounts.google.com")) {
+                window.location.href = data.url;
+                return;
+            }
+
+            showErrorState("Google sign-in link was not received. Please try again.");
+        } catch (error) {
+            showErrorState(error?.message || "Network error occurred while connecting to Google.");
+        }
+    };
+
+    retryBtn.addEventListener("click", startRedirect);
+    backBtn.addEventListener("click", () => window.history.back());
+
+    (
+        async () => {
+            await startRedirect();
+        }
+    )()
+</script>
+
+</html>

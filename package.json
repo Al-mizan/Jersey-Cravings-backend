@@ -1,0 +1,50 @@
+{
+  "name": "assignment - 05",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node dist/server.js",
+    "clean": "rm -rf dist",
+    "build": "pnpm run clean && tsc",
+    "typecheck": "tsc --noEmit",
+    "dev": "tsx --watch src/server.ts",
+    "lint": "eslint ./src/**/*.{ts,tsx}",
+    "migrate": "prisma migrate dev",
+    "generate": "prisma generate",
+    "studio": "prisma studio",
+    "push": "prisma db push",
+    "pull": "prisma db pull",
+    "stripe:webhook": "stripe listen --forward-to localhost:5000/webhook",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.33.0",
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.7.0",
+    "@prisma/client": "^7.7.0",
+    "better-auth": "^1.6.5",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "http-status": "^2.1.0",
+    "qs": "^6.15.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.6.0",
+    "@types/qs": "^6.15.0",
+    "eslint": "^10.2.0",
+    "prisma": "^7.7.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.58.2"
+  }
+}

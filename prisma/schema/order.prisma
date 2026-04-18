@@ -1,12 +1,12 @@
 model Order {
     id                      String        @id @default(uuid(7))
-    orderNumber             String        @unique
+    orderNumber             String        @unique   // This should be a human-readable string (e.g., JC-2026-0418-XYZ) that you show to the customer and use for tracking.
     status                  OrderStatus   @default(PENDING_PAYMENT)
     paymentStatus           PaymentStatus @default(UNPAID)
     subtotalAmount          Int
     discountAmount          Int           @default(0)
     shippingAmount          Int           @default(0)
-    taxAmount               Int           @default(0)
+    // taxAmount               Int           @default(0)
     totalAmount             Int
     currency                String        @default("bdt")
     shippingAddressSnapshot Json
@@ -31,12 +31,12 @@ model Order {
 }
 
 model OrderItem {
-    id                   String   @id @default(uuid())
+    id                   String   @id @default(uuid(7))
     productTitleSnapshot String
     variantSnapshot      Json
     unitPriceAmount      Int
     qty                  Int
-    lineTotalAmount      Int
+    lineTotalAmount      Int    // unitPriceAmount * qty
     createdAt            DateTime @default(now())
     updatedAt            DateTime @updatedAt
 

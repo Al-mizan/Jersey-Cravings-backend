@@ -3,7 +3,7 @@ model Coupon {
     code              String        @unique
     discountType      DiscountType
     value             Float
-    maxDiscountAmount Int?
+    maxDiscountAmount Int? // Only applicable for percentage-based discounts to cap the maximum discount amount for avoiding excessive discounts.
     minOrderAmount    Int?
     usageLimit        Int?
     usedCount         Int           @default(0)
@@ -21,8 +21,8 @@ model Coupon {
 }
 
 model OrderCoupon {
-    id            String   @id @default(uuid())
-    appliedAmount Int
+    id            String   @id @default(uuid(7))
+    appliedAmount Int // The actual discount amount applied to the order for this coupon. This is important to store because the discount value might change in the future, but we want to keep a record of how much discount was applied at the time of the order.
     createdAt     DateTime @default(now())
 
     orderId String

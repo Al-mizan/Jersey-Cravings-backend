@@ -1,7 +1,7 @@
 model Product {
     id            String           @id @default(uuid(7))
     title         String
-    slug          String           @unique
+    slug          String           @unique // URL-friendly identifier
     description   String?
     teamName      String
     tournamentTag String?
@@ -30,12 +30,12 @@ model Product {
 }
 
 model ProductVariant {
-    id              String      @id @default(uuid())
-    sku             String      @unique
+    id              String      @id @default(uuid(7))
+    sku             String      @unique // Stock Keeping Unit
     size            VariantSize
     fit             VariantFit
     sleeveType      SleeveType
-    colorway        String
+    // colorway        String
     priceAmount     Int
     compareAtAmount Int?
     costAmount      Int?
@@ -50,17 +50,17 @@ model ProductVariant {
     productId String
     product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-    @@unique([productId, size, fit, sleeveType, colorway])
+    @@unique([productId, size, fit, sleeveType])
     @@index([productId])
     @@map("product_variants")
 }
 
 model ProductMedia {
-    id           String   @id @default(uuid())
-    publicId     String
-    secureUrl    String
-    resourceType String
-    altText      String?
+    id           String   @id @default(uuid(7))
+    publicId     String // Public identifier from the media hosting service (e.g., Cloudinary public ID)
+    secureUrl    String // URL to access the media resource (cloudinary URL or similar)
+    resourceType String // image, video, etc.
+    altText      String? // Alternative text for accessibility
     sortOrder    Int      @default(0)
     createdAt    DateTime @default(now())
     updatedAt    DateTime @updatedAt
@@ -71,3 +71,59 @@ model ProductMedia {
     @@index([productId])
     @@map("product_media")
 }
+
+/**
+ // todo: Example Product JSON:
+ * {
+ * "id": "01H...XYZ",
+ * "title": "Argentina 2026 World Cup Home Jersey",
+ * "slug": "argentina-2026-world-cup-home",
+ * "teamName": "Argentina",
+ * "tournamentTag": "World Cup 2026",
+ * "jerseyType": "NATIONAL",
+ * "categoryId": "category_id_for_south_america"
+ * }
+ // todo: Example ProductVariant JSON:
+ * [
+ * {
+ * "sku": "ARG-26-HOME-M-FAN-SS",
+ * "size": "M",
+ * "fit": "FAN",
+ * "sleeveType": "SHORT",
+ * "priceAmount": 4500,  // e.g., 4500 BDT
+ * "stockQty": 50
+ * },
+ * {
+ * "sku": "ARG-26-HOME-M-PLY-SS",
+ * "size": "M",
+ * "fit": "PLAYER",      // Player fit is usually more expensive
+ * "sleeveType": "SHORT",
+ * "priceAmount": 6500,
+ * "stockQty": 15
+ * },
+ * {
+ * "sku": "ARG-26-HOME-L-FAN-LS",
+ * "size": "L",
+ * "fit": "FAN",
+ * "sleeveType": "LONG", // Long sleeve variation
+ * "priceAmount": 5000,
+ * "stockQty": 0         // Out of stock!
+ * }
+ * ]
+ *
+ // todo: Example ProductMedia JSON:
+ * [
+ * {
+ * "publicId": "jerseys/arg/home-front",
+ * "secureUrl": "https://cloudinary.com/.../arg-front.jpg",
+ * "altText": "Front view of Argentina 2026 Home Jersey",
+ * "sortOrder": 0  // This will be the main thumbnail
+ * },
+ * {
+ * "publicId": "jerseys/arg/home-back",
+ * "secureUrl": "https://cloudinary.com/.../arg-back.jpg",
+ * "altText": "Back of jersey showing Messi number 10",
+ * "sortOrder": 1  // Second image in the carousel
+ * }
+ * ]
+ */

@@ -29,7 +29,7 @@ model User {
 }
 
 model Session {
-    id        String   @id @default(uuid())
+    id        String   @id @default(uuid(7))
     expiresAt DateTime
     token     String
     createdAt DateTime @default(now())
@@ -45,7 +45,7 @@ model Session {
 }
 
 model Account {
-    id                    String    @id @default(uuid())
+    id                    String    @id @default(uuid(7))
     accountId             String
     providerId            String
     userId                String
@@ -65,7 +65,7 @@ model Account {
 }
 
 model Verification {
-    id         String   @id @default(uuid())
+    id         String   @id @default(uuid(7))
     identifier String
     value      String
     expiresAt  DateTime

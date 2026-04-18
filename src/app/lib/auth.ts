@@ -2,6 +2,8 @@ import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "./prisma";
 import { envVars } from "../config/env";
+// import { sendEmail } from "../utils/email";
+// import { bearer, emailOTP } from "better-auth/plugins";
 
 export const auth = betterAuth({
     baseURL: envVars.BETTER_AUTH_URL,
@@ -9,37 +11,100 @@ export const auth = betterAuth({
     database: prismaAdapter(prisma, {
         provider: "postgresql",
     }),
-    
+
     emailAndPassword: {
         enabled: true,
         requireEmailVerification: true,
     },
 
-    // socialProviders: {
-    //     google: {
-    //         clientId: envVars.GOOGLE_CLIENT_ID,
-    //         clientSecret: envVars.GOOGLE_CLIENT_SECRET,
-    //         accessType: "offline",
-    //         prompt: "select_account",
-    //         // callbackUrl: envVars.GOOGLE_CALLBACK_URL, eta dibo na ekhane
-    //         mapProfileToUser: () => {
-    //             return {
-    //                 role: Role.PATIENT,
-    //                 status: UserStatus.ACTIVE,
-    //                 needPasswordChange: false,
-    //                 emailVerified: true,
-    //                 isDeleted: false,
-    //                 deletedAt: null,
-    //             };
-    //         },
-    //     },
-    // },
+    socialProviders: {
+        google: {
+            clientId: envVars.GOOGLE_CLIENT_ID,
+            clientSecret: envVars.GOOGLE_CLIENT_SECRET,
+            accessType: "offline",
+            prompt: "select_account",
+            // callbackUrl: envVars.GOOGLE_CALLBACK_URL, eta dibo na ekhane
+            mapProfileToUser: () => {
+                return {
+                    role: "CUSTOMER", // Role.PATIENT,
+                    status: "ACTIVE", //UserStatus.ACTIVE,
+                    needPasswordChange: false,
+                    emailVerified: true,
+                    isDeleted: false,
+                    deletedAt: null,
+                };
+            },
+        },
+    },
 
     emailVerification: {
         sendOnSignUp: true,
         sendOnSignIn: true,
         autoSignInAfterVerification: true,
     },
+
+    // plugins: [
+    //     bearer(),
+    //     emailOTP({
+    //         overrideDefaultEmailVerification: true,
+    //         async sendVerificationOTP({ email, otp, type }) {
+    //             if (type === "email-verification") {
+    //                 const user = await prisma.user.findUnique({
+    //                     where: {
+    //                         email,
+    //                     },
+    //                 });
+
+    //                 if (!user) {
+    //                     console.error(
+    //                         `User with email ${email} not found. Cannot send verification OTP.`,
+    //                     );
+    //                     return;
+    //                 }
+
+    //                 if (user && user.role === Role.SUPER_ADMIN) {
+    //                     console.log(
+    //                         `User with email ${email} is a super admin. Skipping sending verification OTP.`,
+    //                     );
+    //                     return;
+    //                 }
+
+    //                 if (user && !user.emailVerified) {
+    //                     sendEmail({
+    //                         to: email,
+    //                         subject: "Verify your email",
+    //                         templateName: "otp",
+    //                         templateData: {
+    //                             name: user.name,
+    //                             otp,
+    //                         },
+    //                     });
+    //                 }
+    //             } else if (type === "forget-password") {
+    //                 const user = await prisma.user.findUnique({
+    //                     where: {
+    //                         email,
+    //                     },
+    //                 });
+
+    //                 if (user) {
+    //                     sendEmail({
+    //                         to: email,
+    //                         subject: "Password Reset OTP",
+    //                         templateName: "otp",
+    //                         templateData: {
+    //                             name: user.name,
+    //                             otp,
+    //                         },
+    //                     });
+    //                 }
+    //             }
+    //         },
+    //         expiresIn: 2 * 60, // 2 minutes in seconds
+    //         otpLength: 6,
+    //     }),
+    // ],
+
     user: {
         additionalFields: {
             role: {

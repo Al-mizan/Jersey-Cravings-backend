@@ -1,0 +1,29 @@
+model Cart {
+    id        String     @id @default(uuid(7))
+    createdAt DateTime   @default(now())
+    updatedAt DateTime   @updatedAt
+    items     CartItem[]
+
+    userId String @unique
+    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@map("carts")
+}
+
+model CartItem {
+    id        String   @id @default(uuid())
+    qty       Int
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    cartId String
+    cart   Cart   @relation(fields: [cartId], references: [id], onDelete: Cascade)
+
+    variantId String
+    variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+
+    @@unique([cartId, variantId])
+    @@index([cartId])
+    @@index([variantId])
+    @@map("cart_items")
+}

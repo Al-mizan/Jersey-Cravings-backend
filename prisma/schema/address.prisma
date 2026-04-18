@@ -1,0 +1,21 @@
+model Address {
+    id            String   @id @default(uuid(7))
+    // label         String
+    recipientName String
+    phone         String
+    address       String // enter block number, building name, street name, union etc.
+    // line2         String?
+    area          String
+    district      String
+    division      String
+    isDefault     Boolean  @default(false)
+    createdAt     DateTime @default(now())
+    updatedAt     DateTime @updatedAt
+
+    userId String
+    user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([phone], name: "idx_address_phone")
+    @@index([isDefault], name: "idx_address_isDefault")
+    @@map("addresses")
+}

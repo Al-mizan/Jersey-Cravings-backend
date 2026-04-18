@@ -1,0 +1,73 @@
+model Product {
+    id            String           @id @default(uuid(7))
+    title         String
+    slug          String           @unique
+    description   String?
+    teamName      String
+    tournamentTag String?
+    jerseyType    JerseyType
+    status        ProductStatus    @default(DRAFT)
+    isDeleted     Boolean          @default(false)
+    deletedAt     DateTime?
+    createdAt     DateTime         @default(now())
+    updatedAt     DateTime         @updatedAt
+    variants      ProductVariant[]
+    media         ProductMedia[]
+    reviews       Review[]
+    orderItems    OrderItem[]
+
+    categoryId String
+    category   Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+    createdById String
+    createdBy   User   @relation("ProductCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+    @@index([categoryId])
+    @@index([createdById])
+    @@index([status, createdAt(sort: Desc)])
+    @@index([isDeleted])
+    @@map("products")
+}
+
+model ProductVariant {
+    id              String      @id @default(uuid())
+    sku             String      @unique
+    size            VariantSize
+    fit             VariantFit
+    sleeveType      SleeveType
+    colorway        String
+    priceAmount     Int
+    compareAtAmount Int?
+    costAmount      Int?
+    stockQty        Int         @default(0)
+    reservedQty     Int         @default(0)
+    isActive        Boolean     @default(true)
+    createdAt       DateTime    @default(now())
+    updatedAt       DateTime    @updatedAt
+    cartItems       CartItem[]
+    orderItems      OrderItem[]
+
+    productId String
+    product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+    @@unique([productId, size, fit, sleeveType, colorway])
+    @@index([productId])
+    @@map("product_variants")
+}
+
+model ProductMedia {
+    id           String   @id @default(uuid())
+    publicId     String
+    secureUrl    String
+    resourceType String
+    altText      String?
+    sortOrder    Int      @default(0)
+    createdAt    DateTime @default(now())
+    updatedAt    DateTime @updatedAt
+
+    productId String
+    product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+    @@index([productId])
+    @@map("product_media")
+}

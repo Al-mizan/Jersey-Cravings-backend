@@ -1,0 +1,38 @@
+model Coupon {
+    id                String        @id @default(uuid(7))
+    code              String        @unique
+    discountType      DiscountType
+    value             Float
+    maxDiscountAmount Int?
+    minOrderAmount    Int?
+    usageLimit        Int?
+    usedCount         Int           @default(0)
+    startsAt          DateTime?
+    endsAt            DateTime?
+    isActive          Boolean       @default(true)
+    isDeleted         Boolean       @default(false)
+    createdAt         DateTime      @default(now())
+    updatedAt         DateTime      @updatedAt
+    deletedAt         DateTime?
+    orderCoupons      OrderCoupon[]
+
+    @@index([isDeleted])
+    @@map("coupons")
+}
+
+model OrderCoupon {
+    id            String   @id @default(uuid())
+    appliedAmount Int
+    createdAt     DateTime @default(now())
+
+    orderId String
+    order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+    couponId String
+    coupon   Coupon @relation(fields: [couponId], references: [id], onDelete: Restrict)
+
+    @@unique([orderId, couponId])
+    @@index([orderId])
+    @@index([couponId])
+    @@map("order_coupons")
+}

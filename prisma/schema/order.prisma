@@ -1,0 +1,56 @@
+model Order {
+    id                      String        @id @default(uuid(7))
+    orderNumber             String        @unique
+    status                  OrderStatus   @default(PENDING_PAYMENT)
+    paymentStatus           PaymentStatus @default(UNPAID)
+    subtotalAmount          Int
+    discountAmount          Int           @default(0)
+    shippingAmount          Int           @default(0)
+    taxAmount               Int           @default(0)
+    totalAmount             Int
+    currency                String        @default("bdt")
+    shippingAddressSnapshot Json
+    billingAddressSnapshot  Json
+    notes                   String?
+    placedAt                DateTime      @default(now())
+    paidAt                  DateTime?
+    cancelledAt             DateTime?
+    deliveredAt             DateTime?
+    createdAt               DateTime      @default(now())
+    updatedAt               DateTime      @updatedAt
+    items                   OrderItem[]
+    payment                 Payment?
+    coupons                 OrderCoupon[]
+
+    userId String
+    user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+    @@index([userId, createdAt(sort: Desc)])
+    @@index([status])
+    @@map("orders")
+}
+
+model OrderItem {
+    id                   String   @id @default(uuid())
+    productTitleSnapshot String
+    variantSnapshot      Json
+    unitPriceAmount      Int
+    qty                  Int
+    lineTotalAmount      Int
+    createdAt            DateTime @default(now())
+    updatedAt            DateTime @updatedAt
+
+    orderId String
+    order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+    productId String
+    product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+    variantId String
+    variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+
+    @@index([orderId])
+    @@index([productId])
+    @@index([variantId])
+    @@map("order_items")
+}

@@ -1,0 +1,76 @@
+enum Role {
+    SUPER_ADMIN
+    ADMIN
+    CUSTOMER
+}
+
+enum UserStatus {
+    ACTIVE
+    BLOCKED
+    DELETED
+}
+
+enum AuthProvider {
+    EMAIL
+    GOOGLE
+    FACEBOOK
+}
+
+enum ProductStatus {
+    DRAFT
+    ACTIVE
+    ARCHIVED
+}
+
+enum JerseyType {
+    HOME
+    AWAY
+    THIRD
+    GK
+    SPECIAL
+}
+
+enum VariantSize {
+    S
+    M
+    L
+    XL
+    XXL
+}
+
+enum VariantFit {
+    PLAYER
+    FAN
+}
+
+enum SleeveType {
+    SHORT
+    LONG
+}
+
+enum OrderStatus {
+    PENDING_PAYMENT
+    PAID
+    PROCESSING
+    SHIPPED
+    DELIVERED
+    CANCELLED
+    REFUNDED
+    EXPIRED
+}
+
+enum PaymentStatus {
+    UNPAID
+    REQUIRES_PAYMENT_METHOD
+    REQUIRES_ACTION
+    PROCESSING
+    SUCCEEDED
+    FAILED
+    CANCELED
+    REFUNDED
+}
+
+enum DiscountType {
+    PERCENT
+    FLAT
+}

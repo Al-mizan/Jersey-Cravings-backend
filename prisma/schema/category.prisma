@@ -1,0 +1,15 @@
+model Category {
+    id        String    @id @default(uuid(7))
+    name      String
+    slug      String    @unique
+    isActive  Boolean   @default(true)
+    isDeleted Boolean   @default(false)
+    createdAt DateTime  @default(now())
+    updatedAt DateTime  @updatedAt
+    deletedAt DateTime?
+    products  Product[]
+
+    @@index([slug], name: "idx_category_slug")
+    @@index([isDeleted], name: "idx_category_isDeleted")
+    @@map("categories")
+}

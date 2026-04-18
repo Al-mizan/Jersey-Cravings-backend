@@ -45,133 +45,73 @@ jersey-cravings/
   src/
     app.ts
     server.ts
+    app/
+      config/
+        env.ts
+        logger.ts
+        prisma.ts
+        stripe.ts
+        cloudinary.ts
+        mailer.ts
+        auth.ts
 
-    config/
-      env.ts
-      logger.ts
-      prisma.ts
-      stripe.ts
-      cloudinary.ts
-      mailer.ts
-      auth.ts
-
-    core/
-      constants/
-        roles.ts
-        order.ts
-        payment.ts
-      errors/
+      errorHelpers/
         AppError.ts
-        errorCodes.ts
+        handlePrismaErrors.ts
+        handleZodError.ts
+
+      interface/
+        error.interface.ts
+        query.interface.ts
+        requestUser.interface.ts
+        index.d.ts
+
+      lib/
+        auth.ts
+        prisma.ts
+
       middleware/
-        auth.middleware.ts
-        role.middleware.ts
-        validate.middleware.ts
-        rateLimit.middleware.ts
-        upload.middleware.ts
+        checkAuth.ts
+        globalErrorHandler.ts
+        notFound.ts
+        validateRequest.ts
+
+      module/
+        admin/
+        auth/
+        payment/
+        review/
+        stats/
+        user/
+
+      routes/
+        index.ts
+
+      shared/
+        catchAsync.ts
+        sendResponse.ts
+
+      templates/
+        googleRedirect.ejs
+        invoice.ejs
+        otp.ejs
+
       utils/
-        pagination.ts
-        slug.ts
-        money.ts
+        cookies.ts
+        deleteUploadedFilesFromGlobalErrorHandler.ts
+        email.ts
         jwt.ts
-      types/
-        express.d.ts
-        common.ts
+        QueryBuilder.ts
+        seed.ts
+        token.ts
 
-    modules/
-      auth/
-        auth.controller.ts
-        auth.service.ts
-        auth.validation.ts
-        auth.routes.ts
-
-      users/
-        user.controller.ts
-        user.service.ts
-        user.validation.ts
-        user.routes.ts
-
-      admin-management/
-        admin.controller.ts
-        admin.service.ts
-        admin.validation.ts
-        admin.routes.ts
-
-      catalog/
-        category.controller.ts
-        category.service.ts
-        category.validation.ts
-        category.routes.ts
-        product.controller.ts
-        product.service.ts
-        product.validation.ts
-        product.routes.ts
-        variant.controller.ts
-        variant.service.ts
-        variant.validation.ts
-        variant.routes.ts
-
-      inventory/
-        inventory.controller.ts
-        inventory.service.ts
-        inventory.routes.ts
-
-      cart/
-        cart.controller.ts
-        cart.service.ts
-        cart.validation.ts
-        cart.routes.ts
-
-      orders/
-        order.controller.ts
-        order.service.ts
-        order.validation.ts
-        order.routes.ts
-
-      payments/
-        payment.controller.ts
-        payment.service.ts
-        payment.validation.ts
-        payment.routes.ts
-        stripe.webhook.ts
-
-      uploads/
-        upload.controller.ts
-        upload.service.ts
-        upload.routes.ts
-
-      coupons/
-        coupon.controller.ts
-        coupon.service.ts
-        coupon.validation.ts
-        coupon.routes.ts
-
-      reviews/
-        review.controller.ts
-        review.service.ts
-        review.validation.ts
-        review.routes.ts
-
-      notifications/
-        notification.service.ts
-        email.templates.ts
-
-    jobs/
-      orderExpiry.job.ts
-      paymentReconciliation.job.ts
-      inventoryAlert.job.ts
-      abandonedCart.job.ts
-
-    routes/
-      index.ts
-
-    docs/
-      openapi.ts
+    generated/
+      prisma/
 
   prisma/
-    schema.prisma
+    schema/
+      schema.prisma
     migrations/
-    seed.ts
 
   tests/
     unit/

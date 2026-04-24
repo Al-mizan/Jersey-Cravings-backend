@@ -1,0 +1,903 @@
+import { randomUUID } from "node:crypto";
+import status from "http-status";
+import { Prisma } from "../../../../generated/prisma/client";
+import {
+    FulfillmentMethod,
+    OrderStatus,
+    PaymentStatus,
+    PointTransactionType,
+    ProductStatus,
+    ReferralRewardStatus,
+} from "../../../../generated/prisma/enums";
+import AppError from "../../../errorHelpers/AppError";
+import { IAuditLog } from "../../../interface/logging.interface";
+import { IRequestUser } from "../../../interface/requestUser.interface";
+import { prisma } from "../../../lib/prisma";
+import { QueryBuilder } from "../../../utils/QueryBuilder";
+import {
+    ICreateOrderPayload,
+    IOrderQueryParams,
+    IUpdateOrderStatusPayload,
+} from "./order.interface";
+
+const SHIPPING_CHARGE_DELIVERY = 120;
+const GIFT_BASE_CHARGE = 30;
+const GIFT_CUSTOM_MESSAGE_CHARGE = 20;
+
+const logAudit = async ({
+    actorRole,
+    actorUserId,
+    action,
+    entityType,
+    entityId,
+    beforeState,
+    afterState,
+    ipAddress,
+    userAgent,
+}: IAuditLog) => {
+    await prisma.auditLog.create({
+        data: {
+            actorUserId,
+            actorRole,
+            action,
+            entityType,
+            entityId,
+            beforeState: beforeState as Prisma.InputJsonValue,
+            afterState: afterState as Prisma.InputJsonValue,
+            ipAddress: ipAddress || "unknown",
+            userAgent: userAgent || "unknown",
+        },
+    });
+};
+
+const generateOrderNumber = () => {
+    const now = new Date();
+    const y = now.getUTCFullYear();
+    const m = String(now.getUTCMonth() + 1).padStart(2, "0");
+    const d = String(now.getUTCDate()).padStart(2, "0");
+    const suffix = randomUUID().replace(/-/g, "").slice(0, 6).toUpperCase();
+    return `JC-${y}${m}${d}-${suffix}`;
+};
+
+const getDiscountAmount = (
+    coupon: {
+        discountType: "PERCENT" | "FLAT";
+        value: number;
+        maxDiscountAmount: number | null;
+    },
+    subtotal: number,
+) => {
+    if (coupon.discountType === "FLAT") {
+        return Math.min(subtotal, coupon.value);
+    }
+
+    const rawDiscount = Math.floor((subtotal * coupon.value) / 100);
+    if (!coupon.maxDiscountAmount) {
+        return rawDiscount;
+    }
+
+    return Math.min(rawDiscount, coupon.maxDiscountAmount);
+};
+
+const createOrder = async (
+    user: IRequestUser,
+    payload: ICreateOrderPayload,
+    ipAddress?: string,
+    userAgent?: string,
+) => {
+    const customer = await prisma.customer.findUnique({
+        where: { userId: user.userId },
+    });
+
+    if (!customer || customer.isDeleted) {
+        throw new AppError(status.NOT_FOUND, "Customer profile not found");
+    }
+
+    const cart = await prisma.cart.findUnique({
+        where: { userId: user.userId },
+        include: {
+            items: {
+                include: {
+                    variant: {
+                        include: {
+                            product: true,
+                        },
+                    },
+                },
+            },
+        },
+    });
+
+    if (!cart || cart.items.length === 0) {
+        throw new AppError(status.BAD_REQUEST, "Cart is empty");
+    }
+
+    const invalidItems = cart.items.find(
+        (item) =>
+            !item.variant.isActive ||
+            item.variant.product.isDeleted ||
+            item.variant.product.status !== ProductStatus.ACTIVE,
+    );
+
+    if (invalidItems) {
+        throw new AppError(
+            status.BAD_REQUEST,
+            "Cart contains unavailable items",
+        );
+    }
+
+    for (const item of cart.items) {
+        if (item.variant.stockQty < item.qty) {
+            throw new AppError(
+                status.BAD_REQUEST,
+                `Insufficient stock for ${item.variant.sku}`,
+            );
+        }
+    }
+
+    const subtotalAmount = cart.items.reduce(
+        (sum, item) => sum + item.qty * item.variant.priceAmount,
+        0,
+    );
+
+    let discountAmount = 0;
+    let couponId: string | null = null;
+
+    if (payload.couponCode) {
+        const coupon = await prisma.coupon.findUnique({
+            where: { code: payload.couponCode.toUpperCase() },
+        });
+
+        if (!coupon || coupon.isDeleted || !coupon.isActive) {
+            throw new AppError(status.BAD_REQUEST, "Coupon is invalid");
+        }
+
+        const now = new Date();
+        if (coupon.startsAt && coupon.startsAt > now) {
+            throw new AppError(status.BAD_REQUEST, "Coupon is not active yet");
+        }
+        if (coupon.endsAt && coupon.endsAt < now) {
+            throw new AppError(status.BAD_REQUEST, "Coupon has expired");
+        }
+        if (
+            coupon.usageLimit !== null &&
+            coupon.usedCount >= coupon.usageLimit
+        ) {
+            throw new AppError(
+                status.BAD_REQUEST,
+                "Coupon usage limit exceeded",
+            );
+        }
+        if (
+            coupon.minOrderAmount !== null &&
+            subtotalAmount < coupon.minOrderAmount
+        ) {
+            throw new AppError(
+                status.BAD_REQUEST,
+                "Order amount does not meet coupon minimum",
+            );
+        }
+
+        discountAmount = getDiscountAmount(coupon, subtotalAmount);
+        couponId = coupon.id;
+    }
+
+    const pointsToRedeem = payload.redeemPoints || 0;
+    if (pointsToRedeem > customer.points) {
+        throw new AppError(
+            status.BAD_REQUEST,
+            "Insufficient points for redemption",
+        );
+    }
+
+    const shippingAmount =
+        (payload.fulfillmentMethod || FulfillmentMethod.DELIVERY) ===
+        FulfillmentMethod.DELIVERY
+            ? SHIPPING_CHARGE_DELIVERY
+            : 0;
+
+    if (
+        (payload.fulfillmentMethod || FulfillmentMethod.DELIVERY) ===
+        FulfillmentMethod.PICKUP
+    ) {
+        if (!payload.pickupLocationId) {
+            throw new AppError(
+                status.BAD_REQUEST,
+                "Pickup location is required for pickup orders",
+            );
+        }
+
+        const location = await prisma.pickupLocation.findUnique({
+            where: { id: payload.pickupLocationId },
+        });
+
+        if (!location || location.status !== "ACTIVE") {
+            throw new AppError(
+                status.BAD_REQUEST,
+                "Pickup location is invalid or inactive",
+            );
+        }
+    }
+
+    const giftAddonAmount = payload.giftAddon
+        ? GIFT_BASE_CHARGE +
+          (payload.giftAddon.customMessage ? GIFT_CUSTOM_MESSAGE_CHARGE : 0)
+        : 0;
+
+    const totalAmount = Math.max(
+        0,
+        subtotalAmount -
+            discountAmount -
+            pointsToRedeem +
+            shippingAmount +
+            giftAddonAmount,
+    );
+
+    let shippingAddressSnapshot: Record<string, unknown> | null = null;
+    if (
+        (payload.fulfillmentMethod || FulfillmentMethod.DELIVERY) ===
+        FulfillmentMethod.DELIVERY
+    ) {
+        const selectedAddress = payload.shippingAddressId
+            ? await prisma.address.findUnique({
+                  where: { id: payload.shippingAddressId },
+              })
+            : await prisma.address.findFirst({
+                  where: { userId: user.userId, isDefault: true },
+              });
+
+        if (!selectedAddress || selectedAddress.userId !== user.userId) {
+            throw new AppError(
+                status.BAD_REQUEST,
+                "A valid shipping address is required",
+            );
+        }
+
+        shippingAddressSnapshot = {
+            recipientName: selectedAddress.recipientName,
+            phone: selectedAddress.phone,
+            address: selectedAddress.address,
+            area: selectedAddress.area,
+            district: selectedAddress.district,
+            division: selectedAddress.division,
+        };
+    }
+
+    const billingAddressSnapshot = payload.billingAddressSnapshot ||
+        shippingAddressSnapshot || { customerName: customer.name };
+
+    const order = await prisma.$transaction(async (tx) => {
+        const createdOrder = await tx.order.create({
+            data: {
+                orderNumber: generateOrderNumber(),
+                userId: user.userId,
+                status: OrderStatus.PENDING_PAYMENT,
+                paymentStatus: PaymentStatus.UNPAID,
+                fulfillmentMethod:
+                    payload.fulfillmentMethod || FulfillmentMethod.DELIVERY,
+                pickupLocationId:
+                    (payload.fulfillmentMethod ||
+                        FulfillmentMethod.DELIVERY) === FulfillmentMethod.PICKUP
+                        ? payload.pickupLocationId
+                        : null,
+                subtotalAmount,
+                discountAmount,
+                shippingAmount,
+                giftAddonAmount,
+                pointsRedeemed: pointsToRedeem,
+                pointsEarned: 0,
+                totalAmount,
+                shippingAddressSnapshot:
+                    shippingAddressSnapshot as Prisma.InputJsonValue,
+                billingAddressSnapshot:
+                    billingAddressSnapshot as Prisma.InputJsonValue,
+                notes: payload.notes,
+            },
+        });
+
+        await tx.orderItem.createMany({
+            data: cart.items.map((item) => ({
+                orderId: createdOrder.id,
+                productId: item.variant.productId,
+                variantId: item.variantId,
+                productTitleSnapshot: item.variant.product.title,
+                variantSnapshot: {
+                    sku: item.variant.sku,
+                    size: item.variant.size,
+                    fit: item.variant.fit,
+                    sleeveType: item.variant.sleeveType,
+                } as Prisma.InputJsonValue,
+                unitPriceAmount: item.variant.priceAmount,
+                qty: item.qty,
+                lineTotalAmount: item.qty * item.variant.priceAmount,
+            })),
+        });
+
+        for (const item of cart.items) {
+            await tx.productVariant.update({
+                where: { id: item.variantId },
+                data: {
+                    stockQty: { decrement: item.qty },
+                    reservedQty: { increment: item.qty },
+                },
+            });
+        }
+
+        if (couponId) {
+            await tx.orderCoupon.create({
+                data: {
+                    orderId: createdOrder.id,
+                    couponId,
+                    appliedAmount: discountAmount,
+                },
+            });
+
+            await tx.coupon.update({
+                where: { id: couponId },
+                data: { usedCount: { increment: 1 } },
+            });
+        }
+
+        if (payload.giftAddon) {
+            await tx.orderGiftAddon.create({
+                data: {
+                    orderId: createdOrder.id,
+                    category: payload.giftAddon.category,
+                    customMessage: payload.giftAddon.customMessage,
+                    cardChargeAmount: GIFT_BASE_CHARGE,
+                    customMessageCharge: payload.giftAddon.customMessage
+                        ? GIFT_CUSTOM_MESSAGE_CHARGE
+                        : 0,
+                    totalChargeAmount: giftAddonAmount,
+                },
+            });
+        }
+
+        await tx.payment.create({
+            data: {
+                orderId: createdOrder.id,
+                amount: totalAmount,
+                transactionId: randomUUID(),
+                status: PaymentStatus.UNPAID,
+            },
+        });
+
+        if (pointsToRedeem > 0) {
+            await tx.customer.update({
+                where: { id: customer.id },
+                data: {
+                    points: { decrement: pointsToRedeem },
+                    lifetimePointsRedeemed: { increment: pointsToRedeem },
+                },
+            });
+
+            await tx.pointTransaction.create({
+                data: {
+                    customerId: customer.id,
+                    orderId: createdOrder.id,
+                    type: PointTransactionType.REDEEM_ORDER,
+                    points: -pointsToRedeem,
+                    balanceAfter: customer.points - pointsToRedeem,
+                    note: "Points redeemed at checkout",
+                },
+            });
+        }
+
+        if (payload.referralCode) {
+            const referralCode = await tx.referralCode.findUnique({
+                where: { code: payload.referralCode },
+            });
+
+            if (referralCode && referralCode.isActive) {
+                const owner = await tx.customer.findUnique({
+                    where: { id: referralCode.ownerCustomerId },
+                });
+
+                if (owner && owner.userId !== user.userId) {
+                    const rewardPoints = Math.floor(
+                        (totalAmount * 200) / 10000,
+                    );
+                    await tx.referralEvent.create({
+                        data: {
+                            referralCodeId: referralCode.id,
+                            referredCustomerId: customer.id,
+                            referredOrderId: createdOrder.id,
+                            orderAmount: totalAmount,
+                            rewardRateBps: 200,
+                            rewardPoints,
+                            status: ReferralRewardStatus.PENDING,
+                        },
+                    });
+                }
+            }
+        }
+
+        await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+
+        return await tx.order.findUnique({
+            where: { id: createdOrder.id },
+            include: {
+                items: true,
+                coupons: true,
+                giftAddon: true,
+                payment: true,
+            },
+        });
+    });
+
+    await logAudit({
+        actorRole: user.role,
+        actorUserId: user.userId,
+        action: "CREATE",
+        entityType: "Order",
+        entityId: order!.id,
+        beforeState: {},
+        afterState: order!,
+        ipAddress,
+        userAgent,
+    });
+
+    return order;
+};
+
+const getMyOrders = async (
+    user: IRequestUser,
+    queryParams: IOrderQueryParams,
+) => {
+    const queryBuilder = new QueryBuilder(prisma.order, queryParams, {
+        filterableFields: ["status", "paymentStatus", "fulfillmentMethod"],
+    });
+
+    const [data, total] = await Promise.all([
+        queryBuilder
+            .where({ userId: user.userId })
+            .filter()
+            .paginate()
+            .sort()
+            .exec({
+                include: {
+                    items: true,
+                    payment: true,
+                    coupons: {
+                        include: {
+                            coupon: true,
+                        },
+                    },
+                    giftAddon: true,
+                },
+            }),
+        queryBuilder.countTotal(),
+    ]);
+
+    return {
+        data,
+        meta: {
+            page: queryBuilder.getPage(),
+            limit: queryBuilder.getLimit(),
+            total,
+            totalPages: Math.ceil(total / queryBuilder.getLimit()),
+        },
+    };
+};
+
+const getMyOrderById = async (user: IRequestUser, orderId: string) => {
+    const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: {
+            items: {
+                include: {
+                    product: {
+                        select: {
+                            id: true,
+                            title: true,
+                            slug: true,
+                        },
+                    },
+                    variant: true,
+                },
+            },
+            payment: true,
+            coupons: {
+                include: {
+                    coupon: true,
+                },
+            },
+            giftAddon: true,
+            referralEvent: true,
+        },
+    });
+
+    if (!order || order.userId !== user.userId) {
+        throw new AppError(status.NOT_FOUND, "Order not found");
+    }
+
+    return order;
+};
+
+const cancelMyOrder = async (
+    user: IRequestUser,
+    orderId: string,
+    ipAddress?: string,
+    userAgent?: string,
+) => {
+    const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: {
+            items: true,
+            pointTransactions: true,
+        },
+    });
+
+    if (!order || order.userId !== user.userId) {
+        throw new AppError(status.NOT_FOUND, "Order not found");
+    }
+
+    if (order.status !== OrderStatus.PENDING_PAYMENT) {
+        throw new AppError(
+            status.BAD_REQUEST,
+            "Only pending payment orders can be cancelled",
+        );
+    }
+
+    const cancelled = await prisma.$transaction(async (tx) => {
+        for (const item of order.items) {
+            await tx.productVariant.update({
+                where: { id: item.variantId },
+                data: {
+                    stockQty: { increment: item.qty },
+                    reservedQty: { decrement: item.qty },
+                },
+            });
+        }
+
+        const redeemTx = order.pointTransactions.find(
+            (tx) => tx.type === PointTransactionType.REDEEM_ORDER,
+        );
+
+        if (redeemTx) {
+            const customer = await tx.customer.findUnique({
+                where: { userId: user.userId },
+            });
+            if (customer) {
+                const restorePoints = Math.abs(redeemTx.points);
+                await tx.customer.update({
+                    where: { id: customer.id },
+                    data: {
+                        points: { increment: restorePoints },
+                        lifetimePointsRedeemed: { decrement: restorePoints },
+                    },
+                });
+
+                await tx.pointTransaction.create({
+                    data: {
+                        customerId: customer.id,
+                        orderId: order.id,
+                        type: PointTransactionType.REVERSAL,
+                        points: restorePoints,
+                        balanceAfter: customer.points + restorePoints,
+                        note: "Points restored after order cancellation",
+                    },
+                });
+            }
+        }
+
+        await tx.payment.update({
+            where: { orderId: order.id },
+            data: {
+                status: PaymentStatus.CANCELED,
+            },
+        });
+
+        return await tx.order.update({
+            where: { id: order.id },
+            data: {
+                status: OrderStatus.CANCELLED,
+                paymentStatus: PaymentStatus.CANCELED,
+                cancelledAt: new Date(),
+            },
+        });
+    });
+
+    await logAudit({
+        actorRole: user.role,
+        actorUserId: user.userId,
+        action: "CANCEL",
+        entityType: "Order",
+        entityId: order.id,
+        beforeState: order,
+        afterState: cancelled,
+        ipAddress,
+        userAgent,
+    });
+
+    return cancelled;
+};
+
+const getAllOrdersForAdmin = async (queryParams: IOrderQueryParams) => {
+    const queryBuilder = new QueryBuilder(prisma.order, queryParams, {
+        searchableFields: ["orderNumber", "user.email"],
+        filterableFields: [
+            "status",
+            "paymentStatus",
+            "fulfillmentMethod",
+            "userId",
+        ],
+    });
+
+    const [data, total] = await Promise.all([
+        queryBuilder
+            .search()
+            .filter()
+            .paginate()
+            .sort()
+            .exec({
+                include: {
+                    user: {
+                        select: {
+                            id: true,
+                            email: true,
+                            role: true,
+                        },
+                    },
+                    payment: true,
+                    items: true,
+                },
+            }),
+        queryBuilder.countTotal(),
+    ]);
+
+    return {
+        data,
+        meta: {
+            page: queryBuilder.getPage(),
+            limit: queryBuilder.getLimit(),
+            total,
+            totalPages: Math.ceil(total / queryBuilder.getLimit()),
+        },
+    };
+};
+
+const getOrderByIdForAdmin = async (orderId: string) => {
+    const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: {
+            user: {
+                select: {
+                    id: true,
+                    email: true,
+                    role: true,
+                },
+            },
+            items: true,
+            payment: true,
+            coupons: {
+                include: {
+                    coupon: true,
+                },
+            },
+            giftAddon: true,
+            pointTransactions: true,
+            referralEvent: true,
+        },
+    });
+
+    if (!order) {
+        throw new AppError(status.NOT_FOUND, "Order not found");
+    }
+
+    return order;
+};
+
+const isValidTransition = (from: OrderStatus, to: OrderStatus) => {
+    const allowed: Record<OrderStatus, OrderStatus[]> = {
+        [OrderStatus.PENDING_PAYMENT]: [
+            OrderStatus.PAID,
+            OrderStatus.PROCESSING,
+            OrderStatus.CANCELLED,
+            OrderStatus.EXPIRED,
+        ],
+        [OrderStatus.PAID]: [
+            OrderStatus.PROCESSING,
+            OrderStatus.REFUNDED,
+            OrderStatus.CANCELLED,
+        ],
+        [OrderStatus.PROCESSING]: [
+            OrderStatus.SHIPPED,
+            OrderStatus.CANCELLED,
+            OrderStatus.REFUNDED,
+        ],
+        [OrderStatus.SHIPPED]: [OrderStatus.DELIVERED, OrderStatus.REFUNDED],
+        [OrderStatus.DELIVERED]: [],
+        [OrderStatus.CANCELLED]: [],
+        [OrderStatus.REFUNDED]: [],
+        [OrderStatus.EXPIRED]: [],
+    };
+
+    return allowed[from].includes(to);
+};
+
+const updateOrderStatusByAdmin = async (
+    orderId: string,
+    payload: IUpdateOrderStatusPayload,
+    actor: IRequestUser,
+    ipAddress?: string,
+    userAgent?: string,
+) => {
+    const order = await prisma.order.findUnique({
+        where: { id: orderId },
+        include: {
+            items: true,
+            referralEvent: {
+                include: {
+                    referralCode: true,
+                },
+            },
+        },
+    });
+
+    if (!order) {
+        throw new AppError(status.NOT_FOUND, "Order not found");
+    }
+
+    if (!isValidTransition(order.status, payload.status)) {
+        throw new AppError(
+            status.BAD_REQUEST,
+            `Invalid order transition from ${order.status} to ${payload.status}`,
+        );
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+        const updatedOrder = await tx.order.update({
+            where: { id: order.id },
+            data: {
+                status: payload.status,
+                paymentStatus:
+                    payload.status === OrderStatus.PAID ||
+                    payload.status === OrderStatus.PROCESSING ||
+                    payload.status === OrderStatus.SHIPPED ||
+                    payload.status === OrderStatus.DELIVERED
+                        ? PaymentStatus.SUCCEEDED
+                        : payload.status === OrderStatus.REFUNDED
+                          ? PaymentStatus.REFUNDED
+                          : order.paymentStatus,
+                paidAt:
+                    payload.status === OrderStatus.PAID && !order.paidAt
+                        ? new Date()
+                        : order.paidAt,
+                deliveredAt:
+                    payload.status === OrderStatus.DELIVERED
+                        ? new Date()
+                        : order.deliveredAt,
+                cancelledAt:
+                    payload.status === OrderStatus.CANCELLED
+                        ? new Date()
+                        : order.cancelledAt,
+            },
+        });
+
+        if (payload.status === OrderStatus.DELIVERED) {
+            const customer = await tx.customer.findUnique({
+                where: { userId: order.userId },
+            });
+            if (customer) {
+                const setting = await tx.loyaltySetting.findFirst({
+                    where: { isActive: true },
+                    orderBy: { updatedAt: "desc" },
+                });
+
+                const earnRateBps = setting?.earnRateBps ?? 200;
+                const pointsEarned = Math.floor(
+                    ((order.subtotalAmount - order.discountAmount) *
+                        earnRateBps) /
+                        10000,
+                );
+                const purchasedQty = order.items.reduce(
+                    (sum, item) => sum + item.qty,
+                    0,
+                );
+
+                if (pointsEarned > 0) {
+                    await tx.customer.update({
+                        where: { id: customer.id },
+                        data: {
+                            points: { increment: pointsEarned },
+                            lifetimePointsEarned: { increment: pointsEarned },
+                            totalPurchasedQty: { increment: purchasedQty },
+                        },
+                    });
+
+                    await tx.pointTransaction.create({
+                        data: {
+                            customerId: customer.id,
+                            orderId: order.id,
+                            type: PointTransactionType.EARN_PURCHASE,
+                            points: pointsEarned,
+                            balanceAfter: customer.points + pointsEarned,
+                            note: "Points earned on delivered order",
+                        },
+                    });
+
+                    await tx.order.update({
+                        where: { id: order.id },
+                        data: { pointsEarned },
+                    });
+                }
+
+                if (
+                    order.referralEvent &&
+                    order.referralEvent.status ===
+                        ReferralRewardStatus.PENDING &&
+                    order.referralEvent.referralCode
+                ) {
+                    const ownerCustomer = await tx.customer.findUnique({
+                        where: {
+                            id: order.referralEvent.referralCode
+                                .ownerCustomerId,
+                        },
+                    });
+
+                    if (ownerCustomer) {
+                        await tx.customer.update({
+                            where: { id: ownerCustomer.id },
+                            data: {
+                                points: {
+                                    increment: order.referralEvent.rewardPoints,
+                                },
+                                lifetimePointsEarned: {
+                                    increment: order.referralEvent.rewardPoints,
+                                },
+                            },
+                        });
+
+                        await tx.pointTransaction.create({
+                            data: {
+                                customerId: ownerCustomer.id,
+                                orderId: order.id,
+                                type: PointTransactionType.REFERRAL_BONUS,
+                                points: order.referralEvent.rewardPoints,
+                                balanceAfter:
+                                    ownerCustomer.points +
+                                    order.referralEvent.rewardPoints,
+                                note: "Referral reward credited after order delivery",
+                            },
+                        });
+
+                        await tx.referralEvent.update({
+                            where: { id: order.referralEvent.id },
+                            data: {
+                                status: ReferralRewardStatus.REWARDED,
+                                rewardedAt: new Date(),
+                            },
+                        });
+                    }
+                }
+            }
+        }
+
+        return updatedOrder;
+    });
+
+    await logAudit({
+        actorRole: actor.role,
+        actorUserId: actor.userId,
+        action: "CHANGE_STATUS",
+        entityType: "Order",
+        entityId: order.id,
+        beforeState: order,
+        afterState: updated,
+        ipAddress,
+        userAgent,
+    });
+
+    return updated;
+};
+
+export const OrderService = {
+    createOrder,
+    getMyOrders,
+    getMyOrderById,
+    cancelMyOrder,
+    getAllOrdersForAdmin,
+    getOrderByIdForAdmin,
+    updateOrderStatusByAdmin,
+};

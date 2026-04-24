@@ -1,0 +1,16 @@
+model OrderGiftAddon {
+    id                  String           @id @default(uuid(7))
+    category            GiftCardCategory
+    cardChargeAmount    Int              @default(30)
+    customMessage       String?
+    customMessageCharge Int              @default(0)
+    totalChargeAmount   Int              @default(30)
+    createdAt           DateTime         @default(now())
+    updatedAt           DateTime         @updatedAt
+
+    orderId String @unique
+    order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+    @@index([category])
+    @@map("order_gift_addons")
+}

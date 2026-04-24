@@ -1,6 +1,6 @@
 model Payment {
     id                 String        @id @default(uuid(7))
-    amount             Float
+    amount             Int
     transactionId      String        @unique @db.Uuid
     stripeEventId      String?       @unique
     status             PaymentStatus @default(UNPAID)

@@ -1,32 +1,48 @@
 model Order {
-    id                      String        @id @default(uuid(7))
-    orderNumber             String        @unique   // This should be a human-readable string (e.g., JC-2026-0418-XYZ) that you show to the customer and use for tracking.
-    status                  OrderStatus   @default(PENDING_PAYMENT)
-    paymentStatus           PaymentStatus @default(UNPAID)
+    id                      String             @id @default(uuid(7))
+    orderNumber             String             @unique // This should be a human-readable string (e.g., JC-2026-0418-XYZ) that you show to the customer and use for tracking.
+    status                  OrderStatus        @default(PENDING_PAYMENT)
+    paymentStatus           PaymentStatus      @default(UNPAID)
+    fulfillmentMethod       FulfillmentMethod  @default(DELIVERY)
     subtotalAmount          Int
-    discountAmount          Int           @default(0)
-    shippingAmount          Int           @default(0)
+    discountAmount          Int                @default(0)
+    shippingAmount          Int                @default(0)
+    giftAddonAmount         Int                @default(0)
     // taxAmount               Int           @default(0)
+    pointsEarned            Int                @default(0)
+    pointsRedeemed          Int                @default(0)
     totalAmount             Int
-    currency                String        @default("bdt")
-    shippingAddressSnapshot Json
+    currency                String             @default("bdt")
+    shippingAddressSnapshot Json?
     billingAddressSnapshot  Json
+    pickupNote              String?
     notes                   String?
-    placedAt                DateTime      @default(now())
+    placedAt                DateTime           @default(now())
     paidAt                  DateTime?
     cancelledAt             DateTime?
     deliveredAt             DateTime?
-    createdAt               DateTime      @default(now())
-    updatedAt               DateTime      @updatedAt
+    createdAt               DateTime           @default(now())
+    updatedAt               DateTime           @updatedAt
     items                   OrderItem[]
     payment                 Payment?
     coupons                 OrderCoupon[]
+    pointTransactions       PointTransaction[]
+    referralEvent           ReferralEvent?
+    giftAddon               OrderGiftAddon?
 
     userId String
     user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
 
+    pickupLocationId String?
+    pickupLocation   PickupLocation? @relation(fields: [pickupLocationId], references: [id], onDelete: SetNull)
+
+    pickupHandledById String?
+    pickupHandledBy   User?   @relation("PickupHandledBy", fields: [pickupHandledById], references: [id], onDelete: SetNull)
+
     @@index([userId, createdAt(sort: Desc)])
     @@index([status])
+    @@index([fulfillmentMethod])
+    @@index([pickupLocationId])
     @@map("orders")
 }
 
@@ -36,7 +52,7 @@ model OrderItem {
     variantSnapshot      Json
     unitPriceAmount      Int
     qty                  Int
-    lineTotalAmount      Int    // unitPriceAmount * qty
+    lineTotalAmount      Int // unitPriceAmount * qty
     createdAt            DateTime @default(now())
     updatedAt            DateTime @updatedAt
 

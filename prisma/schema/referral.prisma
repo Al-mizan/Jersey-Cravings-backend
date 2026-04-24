@@ -1,0 +1,40 @@
+model ReferralCode {
+    id        String   @id @default(uuid(7))
+    code      String   @unique
+    isActive  Boolean  @default(true)
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    ownerCustomerId String   @unique
+    ownerCustomer   Customer @relation(fields: [ownerCustomerId], references: [id], onDelete: Cascade)
+
+    referralEvents ReferralEvent[]
+
+    @@index([ownerCustomerId])
+    @@map("referral_codes")
+}
+
+model ReferralEvent {
+    id            String               @id @default(uuid(7))
+    orderAmount   Int
+    rewardRateBps Int                  @default(200) // 2%
+    rewardPoints  Int
+    status        ReferralRewardStatus @default(PENDING)
+    rewardedAt    DateTime?
+    createdAt     DateTime             @default(now())
+    updatedAt     DateTime             @updatedAt
+
+    referralCodeId String
+    referralCode   ReferralCode @relation(fields: [referralCodeId], references: [id], onDelete: Restrict)
+
+    referredCustomerId String?
+    referredCustomer   Customer? @relation("ReferralAsReferredCustomer", fields: [referredCustomerId], references: [id], onDelete: SetNull)
+
+    referredOrderId String @unique
+    referredOrder   Order  @relation(fields: [referredOrderId], references: [id], onDelete: Cascade)
+
+    @@index([referralCodeId])
+    @@index([referredCustomerId])
+    @@index([status])
+    @@map("referral_events")
+}

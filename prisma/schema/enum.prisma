@@ -74,3 +74,34 @@ enum DiscountType {
     PERCENT
     FLAT
 }
+
+enum FulfillmentMethod {
+    DELIVERY
+    PICKUP
+}
+
+enum PickupLocationStatus {
+    ACTIVE
+    INACTIVE
+}
+
+enum PointTransactionType {
+    EARN_PURCHASE
+    REDEEM_ORDER
+    REFERRAL_BONUS
+    ADJUSTMENT
+    EXPIRY
+    REVERSAL
+}
+
+enum ReferralRewardStatus {
+    PENDING
+    REWARDED
+    REJECTED
+}
+
+enum GiftCardCategory {
+    FRIEND
+    PARTNER
+    FAMILY
+}

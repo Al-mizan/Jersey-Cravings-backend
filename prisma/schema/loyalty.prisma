@@ -1,0 +1,33 @@
+model LoyaltySetting {
+    id                      String   @id @default(uuid(7))
+    name                    String   @default("default")
+    earnRateBps             Int      @default(200) // 2%
+    minPurchasedQtyToRedeem Int      @default(3)
+    isActive                Boolean  @default(true)
+    createdAt               DateTime @default(now())
+    updatedAt               DateTime @updatedAt
+
+    @@unique([name])
+    @@index([isActive])
+    @@map("loyalty_settings")
+}
+
+model PointTransaction {
+    id           String               @id @default(uuid(7))
+    type         PointTransactionType
+    points       Int
+    balanceAfter Int
+    note         String?
+    expiresAt    DateTime?
+    createdAt    DateTime             @default(now())
+
+    customerId String
+    customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+    orderId String?
+    order   Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+    @@index([customerId, createdAt(sort: Desc)])
+    @@index([orderId])
+    @@map("point_transactions")
+}

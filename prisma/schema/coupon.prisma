@@ -2,7 +2,7 @@ model Coupon {
     id                String        @id @default(uuid(7))
     code              String        @unique
     discountType      DiscountType
-    value             Float
+    value             Int
     maxDiscountAmount Int? // Only applicable for percentage-based discounts to cap the maximum discount amount for avoiding excessive discounts.
     minOrderAmount    Int?
     usageLimit        Int?

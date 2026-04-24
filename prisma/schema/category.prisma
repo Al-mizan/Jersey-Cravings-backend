@@ -1,6 +1,6 @@
 model Category {
     id        String    @id @default(uuid(7))
-    name      String
+    name      String    // eg: "FIFA 2026", "clubs"
     slug      String    @unique
     isActive  Boolean   @default(true)
     isDeleted Boolean   @default(false)

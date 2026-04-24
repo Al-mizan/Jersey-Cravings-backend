@@ -12,7 +12,6 @@ const getAuditLogs = async (queryParams: IAuditLogQueryParams) => {
     });
 
     // Handle date range filtering
-    const where = queryBuilder.getWhere();
     if (queryParams.startDate || queryParams.endDate) {
         const createdAtFilter: any = {};
         if (queryParams.startDate) {
@@ -21,7 +20,7 @@ const getAuditLogs = async (queryParams: IAuditLogQueryParams) => {
         if (queryParams.endDate) {
             createdAtFilter.lte = new Date(queryParams.endDate);
         }
-        (where as any).createdAt = createdAtFilter;
+        queryBuilder.where({ createdAt: createdAtFilter } as any);
     }
 
     const [data, total] = await Promise.all([

@@ -4,7 +4,8 @@ import { IQueryConfig, IqueryParams, IQueryResult, PrismaCountArgs, PrismaFindsM
 export class QueryBuilder<
 T, 
 TWhereInput = Record<string, unknown>,
-TInclude = Record<string, unknown>
+TInclude = Record<string, unknown>,
+TQueryParams extends object = IqueryParams
 
 > {
     private query : PrismaFindsManyArgs;
@@ -19,7 +20,7 @@ TInclude = Record<string, unknown>
 
     constructor(
         private model : PrismaModelDelegate,
-        private queryParams : IqueryParams,
+        private queryParams : TQueryParams,
         private config : IQueryConfig = {}
     ){
         this.query = {
@@ -36,7 +37,7 @@ TInclude = Record<string, unknown>
     }
 
     search() : this {
-        const {searchTerm} = this.queryParams;
+        const { searchTerm } = this.queryParams as IqueryParams;
         const { searchableFields} = this.config;
         // doctorSearchableFields = ['user.name', 'user.email', 'specialties.specialty.title' , 'specialties.specialty.description']
         if(searchTerm && searchableFields && searchableFields.length > 0){
@@ -108,9 +109,9 @@ TInclude = Record<string, unknown>
 
         const filterParams : Record<string, unknown> = {};
 
-        Object.keys(this.queryParams).forEach((key) => {
+        Object.keys(this.queryParams as Record<string, unknown>).forEach((key) => {
             if(!excludedField.includes(key)){
-                filterParams[key] = this.queryParams[key];
+                filterParams[key] = (this.queryParams as Record<string, unknown>)[key];
             }
         })
 
@@ -218,8 +219,9 @@ TInclude = Record<string, unknown>
     }
 
     paginate() : this {
-        const page = Number(this.queryParams.page) || 1;
-        const limit = Number(this.queryParams.limit) || 10;
+        const params = this.queryParams as IqueryParams;
+        const page = Number(params.page) || 1;
+        const limit = Number(params.limit) || 10;
 
         this.page = page;
         this.limit = limit;
@@ -232,8 +234,9 @@ TInclude = Record<string, unknown>
     }
 
     sort () : this {
-        const sortBy = this.queryParams.sortBy || 'createdAt';
-        const sortOrder = this.queryParams.sortOrder === 'asc' ? 'asc' : 'desc';
+        const params = this.queryParams as IqueryParams;
+        const sortBy = params.sortBy || 'createdAt';
+        const sortOrder = params.sortOrder === 'asc' ? 'asc' : 'desc';
 
         this.sortBy = sortBy;
         this.sortOrder = sortOrder;
@@ -275,7 +278,7 @@ TInclude = Record<string, unknown>
     }
 
     fields() : this {
-        const fieldsParam = this.queryParams.fields;
+        const fieldsParam = (this.queryParams as IqueryParams).fields;
         // /doctors?fields=id,name,user => select: { id: true, name: true, user: { select: { name: true } } }
 
         //no nested field selection for now, only direct fields
@@ -324,7 +327,7 @@ TInclude = Record<string, unknown>
             }
         })
 
-        const includeParam = this.queryParams.include as string | undefined;
+        const includeParam = (this.queryParams as Record<string, unknown>).include as string | undefined;
 
         if(includeParam && typeof includeParam === 'string'){
             const requestedRelations = includeParam.split(",").map(relation => relation.trim());
@@ -370,12 +373,62 @@ TInclude = Record<string, unknown>
 
     }
 
+    /**
+     * Backward-compatible alias used across services.
+     * Allows passing extra Prisma findMany args (e.g. include/select/where).
+     */
+    async exec(extraArgs?: Partial<PrismaFindsManyArgs>): Promise<T[]> {
+        if (extraArgs && Object.keys(extraArgs).length > 0) {
+            // Merge include/where/orderBy/etc without losing existing builder state.
+            this.query = this.deepMerge(
+                this.query as unknown as Record<string, unknown>,
+                extraArgs as unknown as Record<string, unknown>,
+            ) as unknown as PrismaFindsManyArgs;
+        }
+
+        const data = await this.model.findMany(
+            this.query as Parameters<typeof this.model.findMany>[0],
+        );
+        return data as T[];
+    }
+
+    /** Backward-compatible alias used across services. */
+    async countTotal(): Promise<number> {
+        return await this.model.count(
+            this.countQuery as Parameters<typeof this.model.count>[0],
+        );
+    }
+
+    /** Backward-compatible pagination getters used across services. */
+    getPage(): number {
+        return this.page;
+    }
+
+    getLimit(): number {
+        return this.limit;
+    }
+
     async count() : Promise<number> {
         return await this.model.count(this.countQuery as Parameters<typeof this.model.count>[0]);
     }
 
     getQuery() : PrismaFindsManyArgs {
         return this.query;
+    }
+
+    /**
+     * Returns a mutable reference to the internal `where` object.
+     * Kept for backward-compatibility with services that add custom filters
+     * (e.g. date ranges) before running `filter()/paginate()/sort()`.
+     *
+     * Important: we keep `countQuery.where` pointing at the same object so
+     * totals reflect the same constraints.
+     */
+    getWhere(): Record<string, unknown> {
+        if (this.countQuery.where !== this.query.where) {
+            this.countQuery.where = this.query.where;
+        }
+        return this.query.where as Record<string, unknown>;
     }
 
     private deepMerge(target : Record<string, unknown>, source : Record<string, unknown>) : Record<string, unknown> {

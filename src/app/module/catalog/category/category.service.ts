@@ -8,9 +8,9 @@ import {
     ICreateCategoryPayload,
     IUpdateCategoryPayload,
     ICategoryQueryParams,
-    IAuditLog,
 } from "./category.interface";
 import { IRequestUser } from "../../../interface/requestUser.interface";
+import { IAuditLog } from "../../../interface/logging.interface";
 
 const logAudit = async ({
     actorRole,

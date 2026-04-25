@@ -10,7 +10,6 @@ import {
     ReferralRewardStatus,
 } from "../../../../generated/prisma/enums";
 import AppError from "../../../errorHelpers/AppError";
-import { IAuditLog } from "../../../interface/logging.interface";
 import { IRequestUser } from "../../../interface/requestUser.interface";
 import { prisma } from "../../../lib/prisma";
 import { QueryBuilder } from "../../../utils/QueryBuilder";
@@ -19,36 +18,12 @@ import {
     IOrderQueryParams,
     IUpdateOrderStatusPayload,
 } from "./order.interface";
+import { logAudit } from "../../../shared/logAudit";
 
 const SHIPPING_CHARGE_DELIVERY = 120;
 const GIFT_BASE_CHARGE = 30;
 const GIFT_CUSTOM_MESSAGE_CHARGE = 20;
 
-const logAudit = async ({
-    actorRole,
-    actorUserId,
-    action,
-    entityType,
-    entityId,
-    beforeState,
-    afterState,
-    ipAddress,
-    userAgent,
-}: IAuditLog) => {
-    await prisma.auditLog.create({
-        data: {
-            actorUserId,
-            actorRole,
-            action,
-            entityType,
-            entityId,
-            beforeState: beforeState as Prisma.InputJsonValue,
-            afterState: afterState as Prisma.InputJsonValue,
-            ipAddress: ipAddress || "unknown",
-            userAgent: userAgent || "unknown",
-        },
-    });
-};
 
 const generateOrderNumber = () => {
     const now = new Date();

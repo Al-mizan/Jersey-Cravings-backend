@@ -1,6 +1,5 @@
 import { Router } from "express";
 import { AuthRoutes } from "../module/auth/auth.route";
-import { UserRoutes } from "../module/user/user.route";
 import { CategoryRoutes } from "../module/catalog/category/category.route";
 import { ProductRoutes } from "../module/catalog/product/product.route";
 import { ProductVariantRoutes } from "../module/catalog/product-variant/product-variant.route";
@@ -26,13 +25,12 @@ const router = Router();
 
 // Identity routes
 router.use("/auth", AuthRoutes);
-router.use("/users", UserRoutes);
 
 // Catalog routes
 router.use("/categories", CategoryRoutes);
 router.use("/products", ProductRoutes);
-router.use("/products", ProductVariantRoutes);
-router.use("/products", ProductMediaRoutes);
+router.use("/products/:productId/variants", ProductVariantRoutes);
+router.use("/products/:productId/media", ProductMediaRoutes);
 
 // Governance routes (admin)
 router.use("/admins", AdminRoutes);

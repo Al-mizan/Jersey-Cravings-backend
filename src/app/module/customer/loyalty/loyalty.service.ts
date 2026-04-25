@@ -1,7 +1,5 @@
 import status from "http-status";
-import { Prisma } from "../../../../generated/prisma/client";
 import AppError from "../../../errorHelpers/AppError";
-import { IAuditLog } from "../../../interface/logging.interface";
 import { IRequestUser } from "../../../interface/requestUser.interface";
 import { prisma } from "../../../lib/prisma";
 import { QueryBuilder } from "../../../utils/QueryBuilder";
@@ -9,32 +7,9 @@ import {
     IPointTransactionQueryParams,
     IUpdateLoyaltySettingPayload,
 } from "./loyalty.interface";
+import { logAudit } from "../../../shared/logAudit";
 
-const logAudit = async ({
-    actorRole,
-    actorUserId,
-    action,
-    entityType,
-    entityId,
-    beforeState,
-    afterState,
-    ipAddress,
-    userAgent,
-}: IAuditLog) => {
-    await prisma.auditLog.create({
-        data: {
-            actorUserId,
-            actorRole,
-            action,
-            entityType,
-            entityId,
-            beforeState: beforeState as Prisma.InputJsonValue,
-            afterState: afterState as Prisma.InputJsonValue,
-            ipAddress: ipAddress || "unknown",
-            userAgent: userAgent || "unknown",
-        },
-    });
-};
+
 
 const getMyLoyaltySummary = async (user: IRequestUser) => {
     const customer = await prisma.customer.findUnique({

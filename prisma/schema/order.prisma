@@ -29,6 +29,8 @@ model Order {
     pointTransactions       PointTransaction[]
     referralEvent           ReferralEvent?
     giftAddon               OrderGiftAddon?
+    isActive                Boolean            @default(true)
+    needsManualReview       Boolean            @default(false)
 
     userId String
     user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)

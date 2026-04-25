@@ -3,40 +3,14 @@ import AppError from "../../../errorHelpers/AppError";
 import { prisma } from "../../../lib/prisma";
 import { QueryBuilder } from "../../../utils/QueryBuilder";
 import { IqueryParams } from "../../../interface/query.interface";
-import { Prisma } from "../../../../generated/prisma/client";
 import {
     ICreateCategoryPayload,
     IUpdateCategoryPayload,
     ICategoryQueryParams,
 } from "./category.interface";
 import { IRequestUser } from "../../../interface/requestUser.interface";
-import { IAuditLog } from "../../../interface/logging.interface";
+import { logAudit } from "../../../shared/logAudit";
 
-const logAudit = async ({
-    actorRole,
-    actorUserId,
-    action,
-    entityType,
-    entityId,
-    beforeState,
-    afterState,
-    ipAddress,
-    userAgent,
-}: IAuditLog) => {
-    await prisma.auditLog.create({
-        data: {
-            actorUserId,
-            actorRole,
-            action,
-            entityType,
-            entityId,
-            beforeState: beforeState as Prisma.InputJsonValue,
-            afterState: afterState as Prisma.InputJsonValue,
-            ipAddress: ipAddress || "unknown",
-            userAgent: userAgent || "unknown",
-        },
-    });
-};
 
 const createCategory = async (
     payload: ICreateCategoryPayload,

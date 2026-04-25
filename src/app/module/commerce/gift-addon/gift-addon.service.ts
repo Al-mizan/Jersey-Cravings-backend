@@ -1,40 +1,14 @@
 import status from "http-status";
-import { Prisma } from "../../../../generated/prisma/client";
 import { OrderStatus } from "../../../../generated/prisma/enums";
 import AppError from "../../../errorHelpers/AppError";
-import { IAuditLog } from "../../../interface/logging.interface";
 import { IRequestUser } from "../../../interface/requestUser.interface";
 import { prisma } from "../../../lib/prisma";
 import { IUpsertOrderGiftAddonPayload } from "./gift-addon.interface";
+import { logAudit } from "../../../shared/logAudit";
 
 const BASE_CARD_CHARGE = 30;
 const CUSTOM_MESSAGE_CHARGE = 20;
 
-const logAudit = async ({
-    actorRole,
-    actorUserId,
-    action,
-    entityType,
-    entityId,
-    beforeState,
-    afterState,
-    ipAddress,
-    userAgent,
-}: IAuditLog) => {
-    await prisma.auditLog.create({
-        data: {
-            actorUserId,
-            actorRole,
-            action,
-            entityType,
-            entityId,
-            beforeState: beforeState as Prisma.InputJsonValue,
-            afterState: afterState as Prisma.InputJsonValue,
-            ipAddress: ipAddress || "unknown",
-            userAgent: userAgent || "unknown",
-        },
-    });
-};
 
 const getMyOrderGiftAddon = async (user: IRequestUser, orderId: string) => {
     const order = await prisma.order.findUnique({ where: { id: orderId } });

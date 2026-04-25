@@ -10,9 +10,6 @@ import {
 
 const router = Router();
 
-// Public: Read-only access (storefront can fetch active products)
-router.get("/", ProductController.getAllProducts);
-router.get("/:id", ProductController.getProductById);
 
 // Admin: Full CRUD + state transitions (publish/archive) + soft delete/restore
 router.post(
@@ -21,6 +18,11 @@ router.post(
     validateRequest(createProductZodSchema),
     ProductController.createProduct,
 );
+
+// Public: Read-only access (storefront can fetch active products)
+router.get("/", ProductController.getAllProducts);
+
+router.get("/:id", ProductController.getProductById);
 
 router.patch(
     "/:id",
@@ -36,7 +38,7 @@ router.patch(
     ProductController.publishProduct,
 );
 
-// Archive (ACTIVE -> ARCHIVED)
+// Archive (ACTIVE/DRAFT -> ARCHIVED)
 router.patch(
     "/:id/archive",
     checkAuth(Role.ADMIN, Role.SUPER_ADMIN),

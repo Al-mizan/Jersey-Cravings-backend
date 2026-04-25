@@ -3,6 +3,7 @@ import { checkAuth } from "../../../middleware/checkAuth";
 import { validateRequest } from "../../../middleware/validateRequest";
 import { AdminController } from "./admin.controller";
 import {
+    createAdminZodSchema,
     updateAdminZodSchema,
     changeUserStatusZodSchema,
     changeUserRoleZodSchema,
@@ -10,6 +11,13 @@ import {
 import { Role } from "../../../../generated/prisma/enums";
 
 const router = Router();
+
+router.post(
+    "/",
+    checkAuth(Role.SUPER_ADMIN),
+    validateRequest(createAdminZodSchema),
+    AdminController.createAdmin,
+);
 
 // Get all admins
 router.get(

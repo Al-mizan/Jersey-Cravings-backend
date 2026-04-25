@@ -12,6 +12,7 @@ import { IndexRoutes } from "./app/routes";
 import qs from "qs";
 import { catchAsync } from "./app/shared/catchAsync";
 import { PaymentController } from "./app/module/commerce/payment/payment.controller";
+import { initPaymentCron } from "./app/module/commerce/payment/payment.cron";
 
 const app: Application = express();
 
@@ -48,14 +49,8 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(cookieParser());
 
-// cron.schedule('*/25 * * * *', async () => {
-//     try {
-//         console.log('Running cron job to cancel unpaid appointments...');
-//         await AppointmentService.cancelUnpaidAppointments();
-//     } catch (error: any) {
-//         console.error('Error occurred while canceling unpaid appointments: ', error.message);
-//     }
-// });
+// Initialize order cron jobs
+initPaymentCron();
 
 app.use("/api/v1", IndexRoutes);
 

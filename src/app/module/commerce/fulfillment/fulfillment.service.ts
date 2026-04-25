@@ -1,8 +1,6 @@
 import status from "http-status";
-import { Prisma } from "../../../../generated/prisma/client";
 import { PickupLocationStatus } from "../../../../generated/prisma/enums";
 import AppError from "../../../errorHelpers/AppError";
-import { IAuditLog } from "../../../interface/logging.interface";
 import { IRequestUser } from "../../../interface/requestUser.interface";
 import { prisma } from "../../../lib/prisma";
 import { QueryBuilder } from "../../../utils/QueryBuilder";
@@ -11,32 +9,8 @@ import {
     IFulfillmentQueryParams,
     IUpdatePickupLocationPayload,
 } from "./fulfillment.interface";
+import { logAudit } from "../../../shared/logAudit";
 
-const logAudit = async ({
-    actorRole,
-    actorUserId,
-    action,
-    entityType,
-    entityId,
-    beforeState,
-    afterState,
-    ipAddress,
-    userAgent,
-}: IAuditLog) => {
-    await prisma.auditLog.create({
-        data: {
-            actorUserId,
-            actorRole,
-            action,
-            entityType,
-            entityId,
-            beforeState: beforeState as Prisma.InputJsonValue,
-            afterState: afterState as Prisma.InputJsonValue,
-            ipAddress: ipAddress || "unknown",
-            userAgent: userAgent || "unknown",
-        },
-    });
-};
 
 const getActivePickupLocations = async () => {
     return await prisma.pickupLocation.findMany({

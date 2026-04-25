@@ -11,10 +11,6 @@ import { Role } from "../../../../generated/prisma/enums";
 
 const router = Router({ mergeParams: true }); // /products/:productId/variants
 
-// Public: Read-only access
-router.get("/", ProductVariantController.getVariants);
-router.get("/:variantId", ProductVariantController.getVariantById);
-
 // Admin: Full CRUD
 router.post(
     "/",
@@ -22,6 +18,11 @@ router.post(
     validateRequest(createProductVariantZodSchema),
     ProductVariantController.createVariant,
 );
+
+// Public: Read-only access
+router.get("/", ProductVariantController.getVariants);
+
+router.get("/:variantId", ProductVariantController.getVariantById);
 
 router.patch(
     "/:variantId",

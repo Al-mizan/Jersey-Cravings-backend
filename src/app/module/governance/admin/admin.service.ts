@@ -1,41 +1,87 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import status from "http-status";
 import AppError from "../../../errorHelpers/AppError";
 import { prisma } from "../../../lib/prisma";
 import { QueryBuilder } from "../../../utils/QueryBuilder";
 import {
+    ICreateAdminPayload,
     IUpdateAdminPayload,
     IChangeUserStatusPayload,
     IChangeUserRolePayload,
     IAdminQueryParams,
 } from "./admin.interface";
 import { IRequestUser } from "../../../interface/requestUser.interface";
-import { IAuditLog } from "../../../interface/logging.interface";
-import { Prisma, Role, UserStatus } from "../../../../generated/prisma/client";
+import { Role, UserStatus } from "../../../../generated/prisma/client";
+import { auth } from "../../../lib/auth";
+import { logAudit } from "../../../shared/logAudit";
 
-const logAudit = async ({
-    actorRole,
-    actorUserId,
-    action,
-    entityType,
-    entityId,
-    beforeState,
-    afterState,
-    ipAddress,
-    userAgent,
-}: IAuditLog) => {
-    await prisma.auditLog.create({
-        data: {
-            actorUserId,
-            actorRole,
-            action,
-            entityType,
-            entityId,
-            beforeState: beforeState as Prisma.InputJsonValue,
-            afterState: afterState as Prisma.InputJsonValue,
-            ipAddress: ipAddress || "unknown",
-            userAgent: userAgent || "unknown",
+
+const createAdmin = async (
+    payload: ICreateAdminPayload,
+    user: IRequestUser,
+    ipAddress?: string,
+    userAgent?: string,
+) => {
+    if (user.role !== Role.SUPER_ADMIN) {
+        throw new AppError(
+            status.FORBIDDEN,
+            "Only SUPER_ADMIN can create admin users",
+        );
+    }
+
+    const existingUser = await prisma.user.findUnique({
+        where: { email: payload.admin.email },
+    });
+
+    if (existingUser) {
+        throw new AppError(
+            status.CONFLICT,
+            "User with this email already exists",
+        );
+    }
+
+    const userData = await auth.api.signUpEmail({
+        body: {
+            ...payload.admin,
+            password: payload.password,
+            role: payload.role,
+            needPasswordChange: true,
         },
     });
+
+    try {
+        const adminData = await prisma.admin.create({
+            data: {
+                userId: userData.user.id,
+                ...payload.admin,
+            },
+            include: {
+                user: true,
+            },
+        });
+
+        await logAudit({
+            actorRole: user.role,
+            actorUserId: user.userId,
+            action: "CREATE",
+            entityType: "Admin",
+            entityId: adminData.id,
+            beforeState: {},
+            afterState: adminData,
+            ipAddress,
+            userAgent,
+        });
+
+        return adminData;
+    } catch (error: any) {
+        console.log("Error creating admin: ", error);
+        await prisma.user.delete({
+            where: {
+                id: userData.user.id,
+            },
+        });
+        throw error;
+    }
 };
 
 const getAllAdmins = async (queryParams: IAdminQueryParams) => {
@@ -375,6 +421,7 @@ const changeUserRole = async (
 };
 
 export const AdminService = {
+    createAdmin,
     getAllAdmins,
     getAdminById,
     updateAdmin,

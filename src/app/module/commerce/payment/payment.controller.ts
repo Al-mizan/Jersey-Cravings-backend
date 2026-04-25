@@ -90,6 +90,19 @@ const finalizePaymentFromWebhook = catchAsync(
     },
 );
 
+const handleStripeWebhookEvent = catchAsync(async (req: Request, res: Response) => {
+    const signature = req.headers["stripe-signature"] as string;
+    const result = await PaymentService.handleStripeWebhookEvent(signature, req.body);
+
+    sendResponse(res, {
+        httpStatusCode: status.OK,
+        success: true,
+        message: "Stripe webhook event processed successfully",
+        data: result,
+    });
+});
+
+
 export const PaymentController = {
     initiatePayment,
     getMyPayments,
@@ -97,4 +110,5 @@ export const PaymentController = {
     getAllPaymentsForAdmin,
     refundPaymentByAdmin,
     finalizePaymentFromWebhook,
+    handleStripeWebhookEvent,
 };

@@ -2,7 +2,11 @@
 import status from "http-status";
 import Stripe from "stripe";
 import { Prisma } from "../../../../generated/prisma/client";
-import { OrderStatus, PaymentStatus } from "../../../../generated/prisma/enums";
+import {
+    OrderStatus,
+    PaymentMethod,
+    PaymentStatus,
+} from "../../../../generated/prisma/enums";
 import { envVars } from "../../../config/env";
 import { stripe } from "../../../config/stripe.config";
 import AppError from "../../../errorHelpers/AppError";
@@ -11,6 +15,7 @@ import { prisma } from "../../../lib/prisma";
 import { sendEmail } from "../../../utils/email";
 import { QueryBuilder } from "../../../utils/QueryBuilder";
 import {
+    ICollectCodPaymentPayload,
     IInitiatePaymentPayload,
     IPaymentQueryParams,
     IRefundPaymentPayload,
@@ -46,6 +51,13 @@ const initiatePayment = async (
         );
     }
 
+    if (order.payment.method === PaymentMethod.COD) {
+        throw new AppError(
+            status.BAD_REQUEST,
+            "COD orders do not require Stripe initiation",
+        );
+    }
+
     const updatedPayment = await prisma.payment.update({
         where: { id: order.payment.id },
         data: {
@@ -73,7 +85,7 @@ const getMyPayments = async (
     queryParams: IPaymentQueryParams,
 ) => {
     const queryBuilder = new QueryBuilder(prisma.payment, queryParams, {
-        filterableFields: ["status"],
+        filterableFields: ["status", "method"],
     });
 
     const [data, total] = await Promise.all([
@@ -138,7 +150,7 @@ const getPaymentByOrderForCustomer = async (
 
 const getAllPaymentsForAdmin = async (queryParams: IPaymentQueryParams) => {
     const queryBuilder = new QueryBuilder(prisma.payment, queryParams, {
-        filterableFields: ["status"],
+        filterableFields: ["status", "method"],
     });
 
     const [data, total] = await Promise.all([
@@ -233,6 +245,75 @@ const refundPaymentByAdmin = async (
     return { payment: updatedPayment, order: updatedOrder };
 };
 
+const collectCodPaymentByAdmin = async (
+    paymentId: string,
+    payload: ICollectCodPaymentPayload,
+    actor: IRequestUser,
+    ipAddress?: string,
+    userAgent?: string,
+) => {
+    const payment = await prisma.payment.findUnique({
+        where: { id: paymentId },
+        include: { order: true },
+    });
+
+    if (!payment) {
+        throw new AppError(status.NOT_FOUND, "Payment not found");
+    }
+
+    if (payment.method !== PaymentMethod.COD) {
+        throw new AppError(
+            status.BAD_REQUEST,
+            "Only COD payments can be collected manually",
+        );
+    }
+
+    if (payment.status === PaymentStatus.SUCCEEDED) {
+        throw new AppError(status.BAD_REQUEST, "COD payment already collected");
+    }
+
+    const [updatedPayment, updatedOrder] = await prisma.$transaction([
+        prisma.payment.update({
+            where: { id: payment.id },
+            data: {
+                status: PaymentStatus.SUCCEEDED,
+                collectedAt: new Date(),
+                collectedByAdminId: actor.userId,
+                paymentGatewayData: {
+                    ...(payment.paymentGatewayData as Record<string, unknown>),
+                    codCollectionNote: payload.note || null,
+                    collectedAt: new Date().toISOString(),
+                } as Prisma.InputJsonValue,
+            },
+        }),
+        prisma.order.update({
+            where: { id: payment.orderId },
+            data: {
+                paymentStatus: PaymentStatus.SUCCEEDED,
+                paidAt: payment.order.paidAt || new Date(),
+                status:
+                    payment.order.status === OrderStatus.PENDING_PAYMENT
+                        ? OrderStatus.PAID
+                        : payment.order.status,
+            },
+        }),
+    ]);
+
+    await logAudit({
+        actorRole: actor.role,
+        actorUserId: actor.userId,
+        action: "COLLECT_COD",
+        entityType: "Payment",
+        entityId: payment.id,
+        beforeState: payment,
+        afterState: { payment: updatedPayment, order: updatedOrder },
+        ipAddress,
+        userAgent,
+    });
+
+    return { payment: updatedPayment, order: updatedOrder };
+};
+
 const finalizePaymentFromWebhook = async (
     payload: IWebhookFinalizePaymentPayload,
 ) => {
@@ -243,6 +324,13 @@ const finalizePaymentFromWebhook = async (
 
     if (!payment) {
         throw new AppError(status.NOT_FOUND, "Payment transaction not found");
+    }
+
+    if (payment.method !== PaymentMethod.STRIPE) {
+        throw new AppError(
+            status.BAD_REQUEST,
+            "Webhook finalize is only supported for Stripe payments",
+        );
     }
 
     const beforeState = { ...payment };
@@ -492,6 +580,7 @@ export const PaymentService = {
     getPaymentByOrderForCustomer,
     getAllPaymentsForAdmin,
     refundPaymentByAdmin,
+    collectCodPaymentByAdmin,
     finalizePaymentFromWebhook,
     handleStripeWebhookEvent,
 };

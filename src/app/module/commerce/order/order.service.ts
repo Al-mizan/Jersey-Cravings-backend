@@ -4,6 +4,7 @@ import { Prisma } from "../../../../generated/prisma/client";
 import {
     FulfillmentMethod,
     OrderStatus,
+    PaymentMethod,
     PaymentStatus,
     PointTransactionType,
     ProductStatus,
@@ -20,10 +21,23 @@ import {
 } from "./order.interface";
 import { logAudit } from "../../../shared/logAudit";
 
-const SHIPPING_CHARGE_DELIVERY = 120;
+const SHIPPING_CHARGE_DHAKA = 80;
+const SHIPPING_CHARGE_OUTSIDE_DHAKA = 120;
 const GIFT_BASE_CHARGE = 30;
 const GIFT_CUSTOM_MESSAGE_CHARGE = 20;
 
+const BANGLADESH_DIVISIONS = new Set([
+    "dhaka",
+    "chattogram",
+    "khulna",
+    "rajshahi",
+    "barishal",
+    "sylhet",
+    "rangpur",
+    "mymensingh",
+]);
+
+const normalizeText = (value: string) => value.trim().toLowerCase();
 
 const generateOrderNumber = () => {
     const now = new Date();
@@ -60,6 +74,20 @@ const createOrder = async (
     ipAddress?: string,
     userAgent?: string,
 ) => {
+    const fulfillmentMethod =
+        payload.fulfillmentMethod || FulfillmentMethod.DELIVERY;
+    const paymentMethod = payload.paymentMethod || PaymentMethod.STRIPE;
+
+    if (
+        paymentMethod === PaymentMethod.COD &&
+        fulfillmentMethod !== FulfillmentMethod.PICKUP
+    ) {
+        throw new AppError(
+            status.BAD_REQUEST,
+            "COD is only available for pickup orders",
+        );
+    }
+
     const customer = await prisma.customer.findUnique({
         where: { userId: user.userId },
     });
@@ -165,16 +193,7 @@ const createOrder = async (
         );
     }
 
-    const shippingAmount =
-        (payload.fulfillmentMethod || FulfillmentMethod.DELIVERY) ===
-        FulfillmentMethod.DELIVERY
-            ? SHIPPING_CHARGE_DELIVERY
-            : 0;
-
-    if (
-        (payload.fulfillmentMethod || FulfillmentMethod.DELIVERY) ===
-        FulfillmentMethod.PICKUP
-    ) {
+    if (fulfillmentMethod === FulfillmentMethod.PICKUP) {
         if (!payload.pickupLocationId) {
             throw new AppError(
                 status.BAD_REQUEST,
@@ -194,25 +213,9 @@ const createOrder = async (
         }
     }
 
-    const giftAddonAmount = payload.giftAddon
-        ? GIFT_BASE_CHARGE +
-          (payload.giftAddon.customMessage ? GIFT_CUSTOM_MESSAGE_CHARGE : 0)
-        : 0;
-
-    const totalAmount = Math.max(
-        0,
-        subtotalAmount -
-            discountAmount -
-            pointsToRedeem +
-            shippingAmount +
-            giftAddonAmount,
-    );
-
+    let shippingAmount = 0;
     let shippingAddressSnapshot: Record<string, unknown> | null = null;
-    if (
-        (payload.fulfillmentMethod || FulfillmentMethod.DELIVERY) ===
-        FulfillmentMethod.DELIVERY
-    ) {
+    if (fulfillmentMethod === FulfillmentMethod.DELIVERY) {
         const selectedAddress = payload.shippingAddressId
             ? await prisma.address.findUnique({
                   where: { id: payload.shippingAddressId },
@@ -228,6 +231,20 @@ const createOrder = async (
             );
         }
 
+        const normalizedDivision = normalizeText(selectedAddress.division);
+        if (!BANGLADESH_DIVISIONS.has(normalizedDivision)) {
+            throw new AppError(
+                status.BAD_REQUEST,
+                "Delivery is only available within Bangladesh",
+            );
+        }
+
+        const normalizedDistrict = normalizeText(selectedAddress.district);
+        shippingAmount =
+            normalizedDistrict === "dhaka"
+                ? SHIPPING_CHARGE_DHAKA
+                : SHIPPING_CHARGE_OUTSIDE_DHAKA;
+
         shippingAddressSnapshot = {
             recipientName: selectedAddress.recipientName,
             phone: selectedAddress.phone,
@@ -237,6 +254,20 @@ const createOrder = async (
             division: selectedAddress.division,
         };
     }
+
+    const giftAddonAmount = payload.giftAddon
+        ? GIFT_BASE_CHARGE +
+          (payload.giftAddon.customMessage ? GIFT_CUSTOM_MESSAGE_CHARGE : 0)
+        : 0;
+
+    const totalAmount = Math.max(
+        0,
+        subtotalAmount -
+            discountAmount -
+            pointsToRedeem +
+            shippingAmount +
+            giftAddonAmount,
+    );
 
     const billingAddressSnapshot = payload.billingAddressSnapshot ||
         shippingAddressSnapshot || { customerName: customer.name };
@@ -248,11 +279,10 @@ const createOrder = async (
                 userId: user.userId,
                 status: OrderStatus.PENDING_PAYMENT,
                 paymentStatus: PaymentStatus.UNPAID,
-                fulfillmentMethod:
-                    payload.fulfillmentMethod || FulfillmentMethod.DELIVERY,
+                paymentMethod,
+                fulfillmentMethod,
                 pickupLocationId:
-                    (payload.fulfillmentMethod ||
-                        FulfillmentMethod.DELIVERY) === FulfillmentMethod.PICKUP
+                    fulfillmentMethod === FulfillmentMethod.PICKUP
                         ? payload.pickupLocationId
                         : null,
                 subtotalAmount,
@@ -333,6 +363,7 @@ const createOrder = async (
                 orderId: createdOrder.id,
                 amount: totalAmount,
                 transactionId: randomUUID(),
+                method: paymentMethod,
                 status: PaymentStatus.UNPAID,
             },
         });
@@ -396,6 +427,17 @@ const createOrder = async (
                 coupons: true,
                 giftAddon: true,
                 payment: true,
+                pickupLocation: {
+                    select: {
+                        id: true,
+                        name: true,
+                        addressLine: true,
+                        city: true,
+                        district: true,
+                        phone: true,
+                        openingHours: true,
+                    },
+                },
             },
         });
     });
@@ -433,6 +475,17 @@ const getMyOrders = async (
                 include: {
                     items: true,
                     payment: true,
+                    pickupLocation: {
+                        select: {
+                            id: true,
+                            name: true,
+                            addressLine: true,
+                            city: true,
+                            district: true,
+                            phone: true,
+                            openingHours: true,
+                        },
+                    },
                     coupons: {
                         include: {
                             coupon: true,
@@ -472,6 +525,17 @@ const getMyOrderById = async (user: IRequestUser, orderId: string) => {
                 },
             },
             payment: true,
+            pickupLocation: {
+                select: {
+                    id: true,
+                    name: true,
+                    addressLine: true,
+                    city: true,
+                    district: true,
+                    phone: true,
+                    openingHours: true,
+                },
+            },
             coupons: {
                 include: {
                     coupon: true,
@@ -616,6 +680,17 @@ const getAllOrdersForAdmin = async (queryParams: IOrderQueryParams) => {
                     },
                     payment: true,
                     items: true,
+                    pickupLocation: {
+                        select: {
+                            id: true,
+                            name: true,
+                            addressLine: true,
+                            city: true,
+                            district: true,
+                            phone: true,
+                            openingHours: true,
+                        },
+                    },
                 },
             }),
         queryBuilder.countTotal(),
@@ -645,6 +720,17 @@ const getOrderByIdForAdmin = async (orderId: string) => {
             },
             items: true,
             payment: true,
+            pickupLocation: {
+                select: {
+                    id: true,
+                    name: true,
+                    addressLine: true,
+                    city: true,
+                    district: true,
+                    phone: true,
+                    openingHours: true,
+                },
+            },
             coupons: {
                 include: {
                     coupon: true,

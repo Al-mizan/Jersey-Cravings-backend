@@ -8,7 +8,7 @@ const createPickupLocationZodSchema = z.object({
     city: z.string().min(1, "City is required"),
     district: z.string().min(1, "District is required"),
     postalCode: z.string().optional(),
-    phone: z.string().optional(),
+    phone: z.string().min(6, "Phone number is required"),
     openingHours: z.string().optional(),
     status: z
         .enum([PickupLocationStatus.ACTIVE, PickupLocationStatus.INACTIVE])

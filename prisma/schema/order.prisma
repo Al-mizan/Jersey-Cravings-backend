@@ -3,6 +3,7 @@ model Order {
     orderNumber             String             @unique // This should be a human-readable string (e.g., JC-2026-0418-XYZ) that you show to the customer and use for tracking.
     status                  OrderStatus        @default(PENDING_PAYMENT)
     paymentStatus           PaymentStatus      @default(UNPAID)
+    paymentMethod           PaymentMethod      @default(STRIPE)
     fulfillmentMethod       FulfillmentMethod  @default(DELIVERY)
     subtotalAmount          Int
     discountAmount          Int                @default(0)
@@ -43,6 +44,7 @@ model Order {
 
     @@index([userId, createdAt(sort: Desc)])
     @@index([status])
+    @@index([paymentMethod])
     @@index([fulfillmentMethod])
     @@index([pickupLocationId])
     @@map("orders")

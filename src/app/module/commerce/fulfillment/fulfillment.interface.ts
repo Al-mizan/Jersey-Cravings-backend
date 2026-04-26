@@ -7,7 +7,7 @@ export interface ICreatePickupLocationPayload {
     city: string;
     district: string;
     postalCode?: string;
-    phone?: string;
+    phone: string;
     openingHours?: string;
     status?: PickupLocationStatus;
     isDefault?: boolean;

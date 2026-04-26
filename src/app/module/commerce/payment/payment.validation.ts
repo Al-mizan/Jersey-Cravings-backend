@@ -21,8 +21,13 @@ const refundPaymentZodSchema = z.object({
     reason: z.string().max(500).optional(),
 });
 
+const collectCodPaymentZodSchema = z.object({
+    note: z.string().max(500).optional(),
+});
+
 export const PaymentValidation = {
     initiatePaymentZodSchema,
     webhookFinalizePaymentZodSchema,
     refundPaymentZodSchema,
+    collectCodPaymentZodSchema,
 };

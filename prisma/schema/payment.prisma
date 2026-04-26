@@ -2,10 +2,13 @@ model Payment {
     id                 String        @id @default(uuid(7))
     amount             Int
     transactionId      String        @unique @db.Uuid
+    method             PaymentMethod @default(STRIPE)
     stripeEventId      String?       @unique
     status             PaymentStatus @default(UNPAID)
     paymentGatewayData Json?
     invoiceUrl         String?
+    collectedAt        DateTime?
+    collectedByAdminId String?
     createdAt          DateTime      @default(now())
     updatedAt          DateTime      @updatedAt
 
@@ -14,5 +17,7 @@ model Payment {
 
     @@index([orderId])
     @@index([transactionId])
+    @@index([method])
+    @@index([collectedByAdminId])
     @@map("payments")
 }

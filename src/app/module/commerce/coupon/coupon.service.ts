@@ -1,5 +1,4 @@
 import status from "http-status";
-import { DiscountType } from "../../../../generated/prisma/enums";
 import AppError from "../../../errorHelpers/AppError";
 import { IRequestUser } from "../../../interface/requestUser.interface";
 import { prisma } from "../../../lib/prisma";
@@ -11,26 +10,8 @@ import {
     IValidateCouponPayload,
 } from "./coupon.interface";
 import { logAudit } from "../../../shared/logAudit";
+import { calculateDiscount } from "./coupon.utils";
 
-
-const calculateDiscount = (
-    coupon: {
-        discountType: DiscountType;
-        value: number;
-        maxDiscountAmount: number | null;
-    },
-    orderAmount: number,
-) => {
-    if (coupon.discountType === DiscountType.FLAT) {
-        return Math.min(orderAmount, coupon.value);
-    }
-
-    const raw = Math.floor((orderAmount * coupon.value) / 100);
-    if (!coupon.maxDiscountAmount) {
-        return raw;
-    }
-    return Math.min(raw, coupon.maxDiscountAmount);
-};
 
 const createCoupon = async (
     payload: ICreateCouponPayload,

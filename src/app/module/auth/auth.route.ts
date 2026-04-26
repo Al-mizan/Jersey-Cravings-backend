@@ -5,6 +5,7 @@ import { AuthController } from "./auth.controller";
 
 const router = Router()
 
+// todo: validate zod validation for these routes and add ipAddress and userAgent to logAudit where applicable
 router.post("/register", AuthController.registerCustomer)
 router.post("/login", AuthController.loginUser)
 router.get("/me", checkAuth(Role.ADMIN, Role.CUSTOMER, Role.SUPER_ADMIN), AuthController.getMe)

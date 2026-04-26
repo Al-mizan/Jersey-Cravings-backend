@@ -76,6 +76,24 @@ const refundPaymentByAdmin = catchAsync(async (req: Request, res: Response) => {
     });
 });
 
+const collectCodPaymentByAdmin = catchAsync(
+    async (req: Request, res: Response) => {
+        const result = await PaymentService.collectCodPaymentByAdmin(
+            req.params.paymentId as string,
+            req.body,
+            req.user as IRequestUser,
+            req.ip,
+            req.get("user-agent"),
+        );
+        sendResponse(res, {
+            httpStatusCode: status.OK,
+            success: true,
+            message: "COD payment collected successfully",
+            data: result,
+        });
+    },
+);
+
 const finalizePaymentFromWebhook = catchAsync(
     async (req: Request, res: Response) => {
         const result = await PaymentService.finalizePaymentFromWebhook(
@@ -90,18 +108,22 @@ const finalizePaymentFromWebhook = catchAsync(
     },
 );
 
-const handleStripeWebhookEvent = catchAsync(async (req: Request, res: Response) => {
-    const signature = req.headers["stripe-signature"] as string;
-    const result = await PaymentService.handleStripeWebhookEvent(signature, req.body);
+const handleStripeWebhookEvent = catchAsync(
+    async (req: Request, res: Response) => {
+        const signature = req.headers["stripe-signature"] as string;
+        const result = await PaymentService.handleStripeWebhookEvent(
+            signature,
+            req.body,
+        );
 
-    sendResponse(res, {
-        httpStatusCode: status.OK,
-        success: true,
-        message: "Stripe webhook event processed successfully",
-        data: result,
-    });
-});
-
+        sendResponse(res, {
+            httpStatusCode: status.OK,
+            success: true,
+            message: "Stripe webhook event processed successfully",
+            data: result,
+        });
+    },
+);
 
 export const PaymentController = {
     initiatePayment,
@@ -109,6 +131,7 @@ export const PaymentController = {
     getPaymentByOrderForCustomer,
     getAllPaymentsForAdmin,
     refundPaymentByAdmin,
+    collectCodPaymentByAdmin,
     finalizePaymentFromWebhook,
     handleStripeWebhookEvent,
 };

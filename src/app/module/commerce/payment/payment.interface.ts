@@ -1,4 +1,7 @@
-import { PaymentStatus } from "../../../../generated/prisma/enums";
+import {
+    PaymentMethod,
+    PaymentStatus,
+} from "../../../../generated/prisma/enums";
 
 export interface IInitiatePaymentPayload {
     orderId: string;
@@ -18,8 +21,13 @@ export interface IRefundPaymentPayload {
     reason?: string;
 }
 
+export interface ICollectCodPaymentPayload {
+    note?: string;
+}
+
 export interface IPaymentQueryParams {
     status?: string;
+    method?: PaymentMethod;
     page?: number;
     limit?: number;
     sortBy?: string;

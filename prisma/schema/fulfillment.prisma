@@ -6,7 +6,7 @@ model PickupLocation {
     city         String
     district     String
     postalCode   String?
-    phone        String?
+    phone        String
     openingHours String?
     status       PickupLocationStatus @default(ACTIVE)
     isDefault    Boolean              @default(false)

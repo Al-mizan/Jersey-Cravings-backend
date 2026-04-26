@@ -2,10 +2,12 @@ import {
     FulfillmentMethod,
     GiftCardCategory,
     OrderStatus,
+    PaymentMethod,
 } from "../../../../generated/prisma/enums";
 
 export interface ICreateOrderPayload {
     fulfillmentMethod?: FulfillmentMethod;
+    paymentMethod?: PaymentMethod;
     pickupLocationId?: string;
     shippingAddressId?: string;
     billingAddressSnapshot?: Record<string, unknown>;

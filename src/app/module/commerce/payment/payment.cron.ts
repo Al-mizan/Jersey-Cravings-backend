@@ -1,6 +1,10 @@
 import cron from "node-cron";
 import { prisma } from "../../../lib/prisma";
-import { OrderStatus, PaymentStatus } from "../../../../generated/prisma/enums";
+import {
+    OrderStatus,
+    PaymentMethod,
+    PaymentStatus,
+} from "../../../../generated/prisma/enums";
 import { releaseInventory, markForManualReview } from "../order/order.utils";
 
 const handleAutoExpiry = async () => {
@@ -15,6 +19,11 @@ const handleAutoExpiry = async () => {
                         PaymentStatus.REQUIRES_PAYMENT_METHOD,
                         PaymentStatus.REQUIRES_ACTION,
                     ],
+                },
+                payment: {
+                    is: {
+                        method: PaymentMethod.STRIPE,
+                    },
                 },
                 status: {
                     notIn: [

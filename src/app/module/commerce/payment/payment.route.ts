@@ -35,6 +35,13 @@ router.patch(
     PaymentController.refundPaymentByAdmin,
 );
 
+router.patch(
+    "/:paymentId/collect-cod",
+    checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
+    validateRequest(PaymentValidation.collectCodPaymentZodSchema),
+    PaymentController.collectCodPaymentByAdmin,
+);
+
 // System webhook endpoint for final payment status updates.
 router.post(
     "/webhook/finalize",

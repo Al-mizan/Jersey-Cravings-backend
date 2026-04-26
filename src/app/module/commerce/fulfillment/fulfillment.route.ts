@@ -14,18 +14,21 @@ router.get(
     checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
     FulfillmentController.getPickupLocations,
 );
+
 router.post(
     "/",
     checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
     validateRequest(FulfillmentValidation.createPickupLocationZodSchema),
     FulfillmentController.createPickupLocation,
 );
+
 router.patch(
     "/:locationId",
     checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
     validateRequest(FulfillmentValidation.updatePickupLocationZodSchema),
     FulfillmentController.updatePickupLocation,
 );
+
 router.delete(
     "/:locationId",
     checkAuth(Role.ADMIN, Role.SUPER_ADMIN),

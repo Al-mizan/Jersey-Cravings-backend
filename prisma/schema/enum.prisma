@@ -70,6 +70,11 @@ enum PaymentStatus {
     REFUNDED
 }
 
+enum PaymentMethod {
+    STRIPE
+    COD
+}
+
 enum DiscountType {
     PERCENT
     FLAT

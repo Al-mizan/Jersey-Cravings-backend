@@ -19,7 +19,7 @@ const createCouponZodSchema = z.object({
 const updateCouponZodSchema = createCouponZodSchema.partial();
 
 const validateCouponZodSchema = z.object({
-    code: z.string().min(2),
+    code: z.string().min(2, "Coupon code is required"),
     orderAmount: z.number().int().nonnegative(),
 });
 

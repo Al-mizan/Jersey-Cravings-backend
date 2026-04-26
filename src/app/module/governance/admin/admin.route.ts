@@ -2,13 +2,13 @@ import { Router } from "express";
 import { checkAuth } from "../../../middleware/checkAuth";
 import { validateRequest } from "../../../middleware/validateRequest";
 import { AdminController } from "./admin.controller";
+import { Role } from "../../../../generated/prisma/enums";
 import {
     createAdminZodSchema,
     updateAdminZodSchema,
     changeUserStatusZodSchema,
     changeUserRoleZodSchema,
 } from "./admin.validation";
-import { Role } from "../../../../generated/prisma/enums";
 
 const router = Router();
 
@@ -33,6 +33,7 @@ router.get(
     AdminController.getAdminById,
 );
 
+// todo: profile photo upload and update via cloudinary (only in update route, not in create route)
 // Update admin (own profile or SUPER_ADMIN can update any)
 router.patch(
     "/:id",

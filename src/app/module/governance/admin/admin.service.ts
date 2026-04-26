@@ -15,7 +15,6 @@ import { Role, UserStatus } from "../../../../generated/prisma/client";
 import { auth } from "../../../lib/auth";
 import { logAudit } from "../../../shared/logAudit";
 
-
 const createAdmin = async (
     payload: ICreateAdminPayload,
     user: IRequestUser,
@@ -295,7 +294,7 @@ const changeUserStatus = async (
 ) => {
     const targetUser = await prisma.user.findUnique({
         where: { id: payload.userId },
-        include: { admin: true, customer: true },
+        include: { admin: true, customerProfile: true },
     });
 
     if (!targetUser) {
@@ -334,7 +333,7 @@ const changeUserStatus = async (
     const updatedUser = await prisma.user.update({
         where: { id: payload.userId },
         data: { status: statusMap[payload.status as keyof typeof statusMap] },
-        include: { admin: true, customer: true },
+        include: { admin: true, customerProfile: true },
     });
 
     // Audit log

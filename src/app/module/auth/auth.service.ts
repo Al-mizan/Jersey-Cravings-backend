@@ -3,13 +3,17 @@ import { UserStatus } from "../../../generated/prisma/enums";
 import AppError from "../../errorHelpers/AppError";
 import { auth } from "../../lib/auth";
 import { prisma } from "../../lib/prisma";
-import { iChangePasswordPayload, ILoginUserPayload, IRegisterCustomerPayload, iSessionData } from "./auth.interface";
+import {
+    iChangePasswordPayload,
+    ILoginUserPayload,
+    IRegisterCustomerPayload,
+    iSessionData,
+} from "./auth.interface";
 import { tokenUtils } from "../../utils/token";
 import { IRequestUser } from "../../interface/requestUser.interface";
 import { envVars } from "../../config/env";
 import { jwtUtils } from "../../utils/jwt";
 import { JwtPayload } from "jsonwebtoken";
-
 
 const registerCustomer = async (payload: IRegisterCustomerPayload) => {
     const { email, password, name } = payload;
@@ -19,21 +23,18 @@ const registerCustomer = async (payload: IRegisterCustomerPayload) => {
             email,
             password,
             name,
-        }
-    })
+        },
+    });
     if (!data.user) {
-        throw new AppError(status.BAD_REQUEST, 'Registration failed');
+        throw new AppError(status.BAD_REQUEST, "Registration failed");
     }
     try {
-        const customer = await prisma.$transaction(async (tx) => {
-            const customerTx = await tx.customer.create({
-                data: {
-                    userId: data.user.id,
-                    name: payload.name,
-                    email: payload.email,
-                }
-            })
-            return customerTx;
+        const customer = await prisma.customer.create({
+            data: {
+                userId: data.user.id,
+                name: payload.name,
+                email: payload.email,
+            },
         });
 
         const accessToken = tokenUtils.getAccessToken({
@@ -67,8 +68,8 @@ const registerCustomer = async (payload: IRegisterCustomerPayload) => {
         await prisma.user.delete({
             where: {
                 id: data.user.id,
-            }
-        })
+            },
+        });
         throw error;
     }
 };
@@ -79,13 +80,13 @@ const loginUser = async (payload: ILoginUserPayload) => {
         body: {
             email,
             password,
-        }
+        },
     });
     if (data.user.status === UserStatus.BLOCKED) {
-        throw new AppError(status.FORBIDDEN, 'User is blocked');
+        throw new AppError(status.FORBIDDEN, "User is blocked");
     }
     if (data.user.isDeleted || data.user.status === UserStatus.DELETED) {
-        throw new AppError(status.NOT_FOUND, 'User is deleted');
+        throw new AppError(status.NOT_FOUND, "User is deleted");
     }
 
     const accessToken = tokenUtils.getAccessToken({
@@ -121,29 +122,18 @@ const getMe = async (user: IRequestUser) => {
             id: user.userId,
         },
         include: {
-            // customer: {
-            //     include: {
-            //         appointments: true,
-            //         reviews: true,
-            //         prescriptions: true,
-            //         medicalReports: true,
-            //         patientHealthData: true,
-            //     }
-            // },
-            // doctor: {
-            //     include: {
-            //         specialties: true,
-            //         appointments: true,
-            //         reviews: true,
-            //         prescriptions: true,
-            //     }
-            // },
+            customer: true,
+            accounts: {
+                select: {
+                    providerId: true,
+                },
+            },
             admin: true,
         },
     });
 
     if (!userData) {
-        throw new AppError(status.NOT_FOUND, 'User not found');
+        throw new AppError(status.NOT_FOUND, "User not found");
     }
 
     return userData;
@@ -156,17 +146,20 @@ const getNewToken = async (refreshToken: string, sessionToken: string) => {
         },
         include: {
             user: true,
-        }
+        },
     });
 
     if (!isSessionTokenExist) {
-        throw new AppError(status.UNAUTHORIZED, 'Invalid session token');
+        throw new AppError(status.UNAUTHORIZED, "Invalid session token");
     }
 
-    const verifiedRefreshToken = jwtUtils.verifyToken(refreshToken, envVars.REFRESH_TOKEN_SECRET);
+    const verifiedRefreshToken = jwtUtils.verifyToken(
+        refreshToken,
+        envVars.REFRESH_TOKEN_SECRET,
+    );
 
     if (!verifiedRefreshToken.success && verifiedRefreshToken.error) {
-        throw new AppError(status.UNAUTHORIZED, 'Invalid refresh token');
+        throw new AppError(status.UNAUTHORIZED, "Invalid refresh token");
     }
 
     const data = verifiedRefreshToken.data as JwtPayload;
@@ -200,24 +193,27 @@ const getNewToken = async (refreshToken: string, sessionToken: string) => {
             // refreshToken: newRefreshToken,
             expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // session should have the same expiration as the refresh token, but since better-auth.session_token is automatically refreshed by better-auth when the user is active, we can set a long expiration here and rely on better-auth to handle the actual expiration and refreshing of the token based on user activity
             updatedAt: new Date(),
-        }
+        },
     });
 
     return {
         accessToken: newAccessToken,
         refreshToken: newRefreshToken,
         sessionToken: token,
-    }
+    };
 };
 
-const changePassword = async (payload: iChangePasswordPayload, sessionToken: string) => {
+const changePassword = async (
+    payload: iChangePasswordPayload,
+    sessionToken: string,
+) => {
     const session = await auth.api.getSession({
         headers: new Headers({
-            Authorization: `Bearer ${sessionToken}`
-        })
-    })
+            Authorization: `Bearer ${sessionToken}`,
+        }),
+    });
     if (!session) {
-        throw new AppError(status.UNAUTHORIZED, 'Invalid session token');
+        throw new AppError(status.UNAUTHORIZED, "Invalid session token");
     }
     const { currentPassword, newPassword } = payload;
     const result = await auth.api.changePassword({
@@ -227,9 +223,9 @@ const changePassword = async (payload: iChangePasswordPayload, sessionToken: str
             revokeOtherSessions: true, // logout other sessions except the current one
         },
         headers: new Headers({
-            Authorization: `Bearer ${sessionToken}`
-        })
-    })
+            Authorization: `Bearer ${sessionToken}`,
+        }),
+    });
 
     const accessToken = tokenUtils.getAccessToken({
         userId: session.user.id,
@@ -254,22 +250,21 @@ const changePassword = async (payload: iChangePasswordPayload, sessionToken: str
     return {
         ...result,
         accessToken,
-        refreshToken
+        refreshToken,
     };
 };
 
 const logoutUser = async (sessionToken: string) => {
     const result = await auth.api.signOut({
         headers: new Headers({
-            Authorization: `Bearer ${sessionToken}`
-        })
-    })
+            Authorization: `Bearer ${sessionToken}`,
+        }),
+    });
 
     return result;
 };
 
-const verifyEmail = async (email : string, otp : string) => {
-
+const verifyEmail = async (email: string, otp: string) => {
     // google login user should not be able to use verify email feature
     const isUserExist = await prisma.user.findUnique({
         where: {
@@ -279,78 +274,45 @@ const verifyEmail = async (email : string, otp : string) => {
             accounts: {
                 select: {
                     providerId: true,
-                }
-            }
-        }
-    })
-    if(!isUserExist){
+                },
+            },
+        },
+    });
+    if (!isUserExist) {
         throw new AppError(status.NOT_FOUND, "User not found");
     }
-    if(isUserExist.isDeleted || isUserExist.status === UserStatus.DELETED){
+    if (isUserExist.isDeleted || isUserExist.status === UserStatus.DELETED) {
         throw new AppError(status.NOT_FOUND, "User not found");
     }
-    if(isUserExist.accounts.some(account => account.providerId === "google")){
-        throw new AppError(status.BAD_REQUEST, "Google login user cannot use verify email feature");
+    if (
+        isUserExist.accounts.some((account) => account.providerId === "google")
+    ) {
+        throw new AppError(
+            status.BAD_REQUEST,
+            "Google login user cannot use verify email feature",
+        );
     }
 
     const result = await auth.api.verifyEmailOTP({
-        body:{
+        body: {
             email,
             otp,
-        }
-    })
+        },
+    });
 
-    if(result.status && !result.user.emailVerified){
+    if (result.status && !result.user.emailVerified) {
         await prisma.user.update({
-            where : {
+            where: {
                 email,
             },
-            data : {
+            data: {
                 emailVerified: true,
-            }
-        })
+            },
+        });
     }
 };
 
-const forgetPassword = async (email : string) => {
-    const isUserExist = await prisma.user.findUnique({
-        where : {
-            email,
-        },
-        include: {
-            accounts: {
-                select: {
-                    providerId: true,
-                }
-            }
-        }
-    })
-
-    if(!isUserExist){
-        throw new AppError(status.NOT_FOUND, "User not found");
-    }
-    
-    if(isUserExist.isDeleted || isUserExist.status === UserStatus.DELETED){
-        throw new AppError(status.NOT_FOUND, "User not found"); 
-    }
-
-    if(!isUserExist.emailVerified){
-        throw new AppError(status.BAD_REQUEST, "Email not verified");
-    }
-
-    // google login user should not be able to use forget password feature
-    if(isUserExist.accounts.some(account => account.providerId === "google")){
-        throw new AppError(status.BAD_REQUEST, "Google login user cannot use forget password feature");
-    }
-
-    await auth.api.requestPasswordResetEmailOTP({
-        body:{
-            email,
-        }
-    })
-}
-
-const resetPassword = async (email : string, otp : string, newPassword : string) => {
+const forgetPassword = async (email: string) => {
     const isUserExist = await prisma.user.findUnique({
         where: {
             email,
@@ -359,10 +321,57 @@ const resetPassword = async (email : string, otp : string, newPassword : string)
             accounts: {
                 select: {
                     providerId: true,
-                }
-            }
-        }
-    })
+                },
+            },
+        },
+    });
+
+    if (!isUserExist) {
+        throw new AppError(status.NOT_FOUND, "User not found");
+    }
+
+    if (isUserExist.isDeleted || isUserExist.status === UserStatus.DELETED) {
+        throw new AppError(status.NOT_FOUND, "User not found");
+    }
+
+    if (!isUserExist.emailVerified) {
+        throw new AppError(status.BAD_REQUEST, "Email not verified");
+    }
+
+    // google login user should not be able to use forget password feature
+    if (
+        isUserExist.accounts.some((account) => account.providerId === "google")
+    ) {
+        throw new AppError(
+            status.BAD_REQUEST,
+            "Google login user cannot use forget password feature",
+        );
+    }
+
+    await auth.api.requestPasswordResetEmailOTP({
+        body: {
+            email,
+        },
+    });
+};
+
+const resetPassword = async (
+    email: string,
+    otp: string,
+    newPassword: string,
+) => {
+    const isUserExist = await prisma.user.findUnique({
+        where: {
+            email,
+        },
+        include: {
+            accounts: {
+                select: {
+                    providerId: true,
+                },
+            },
+        },
+    });
 
     if (!isUserExist) {
         throw new AppError(status.NOT_FOUND, "User not found");
@@ -377,17 +386,22 @@ const resetPassword = async (email : string, otp : string, newPassword : string)
     }
 
     // google login user should not be able to use forget password feature
-    if(isUserExist.accounts.some(account => account.providerId === "google")){
-        throw new AppError(status.BAD_REQUEST, "Google login user cannot use forget password feature");
+    if (
+        isUserExist.accounts.some((account) => account.providerId === "google")
+    ) {
+        throw new AppError(
+            status.BAD_REQUEST,
+            "Google login user cannot use forget password feature",
+        );
     }
 
     await auth.api.resetPasswordEmailOTP({
-        body:{
+        body: {
             email,
             otp,
-            password : newPassword,
-        }
-    })
+            password: newPassword,
+        },
+    });
 
     if (isUserExist.needPasswordChange) {
         await prisma.user.update({
@@ -396,33 +410,32 @@ const resetPassword = async (email : string, otp : string, newPassword : string)
             },
             data: {
                 needPasswordChange: false,
-            }
-        })
+            },
+        });
     }
 
     await prisma.session.deleteMany({
-        where:{
-            userId : isUserExist.id,
-        }
-    })
-}
+        where: {
+            userId: isUserExist.id,
+        },
+    });
+};
 
-const googleLoginSuccess = async (session : iSessionData) =>{
+const googleLoginSuccess = async (session: iSessionData) => {
     const isCustomerExists = await prisma.customer.findUnique({
-        where : {
-            userId : session.user.id,
-        }
-    })
+        where: {
+            userId: session.user.id,
+        },
+    });
 
-    if(!isCustomerExists){
+    if (!isCustomerExists) {
         await prisma.customer.create({
-            data : {
-                userId : session.user.id,
-                name : session.user.name,
-                email : session.user.email,
-            }
-        
-        })
+            data: {
+                userId: session.user.id,
+                name: session.user.name,
+                email: session.user.email,
+            },
+        });
     }
 
     const accessToken = tokenUtils.getAccessToken({
@@ -440,8 +453,8 @@ const googleLoginSuccess = async (session : iSessionData) =>{
     return {
         accessToken,
         refreshToken,
-    }
-}
+    };
+};
 
 export const AuthService = {
     registerCustomer,

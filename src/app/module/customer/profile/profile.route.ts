@@ -12,6 +12,8 @@ router.get(
     checkAuth(Role.CUSTOMER),
     CustomerProfileController.getMyProfile,
 );
+
+// todo: when updating profile, if one update profile photo, then use multer to handle file upload and delete old photo from storage (if exists) to save storage space and use cloudinary. 
 router.patch(
     "/me",
     checkAuth(Role.CUSTOMER),

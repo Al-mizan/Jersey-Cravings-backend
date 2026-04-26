@@ -10,6 +10,8 @@ import { Role } from "../../../../generated/prisma/enums";
 
 const router = Router({ mergeParams: true }); // /products/:productId/media
 
+//todo: cloudinary upload stategy, maybe we can generate a signed url for direct upload from the client and then just save the media record with the url in our database. This way we can avoid handling file uploads directly in our server and also leverage cloudinary's capabilities for handling media.
+
 // Public: Read-only access
 router.get("/", ProductMediaController.getMedia);
 router.get("/:mediaId", ProductMediaController.getMediaById);

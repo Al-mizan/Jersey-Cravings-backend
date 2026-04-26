@@ -19,8 +19,6 @@ import {
 import { generateOrderInvoicePdf } from "./payment.utils";
 import { logAudit } from "../../../shared/logAudit";
 
-
-
 const initiatePayment = async (
     user: IRequestUser,
     payload: IInitiatePaymentPayload,
@@ -377,8 +375,6 @@ const handleStripeWebhookEvent = async (
                 return { message: "Order not found" };
             }
 
-            let invoicePdfBuffer: Buffer | null = null;
-
             const result = await prisma.$transaction(async (tx) => {
                 let paymentStatus: PaymentStatus = PaymentStatus.UNPAID;
                 let orderStatus = order.status;
@@ -386,44 +382,6 @@ const handleStripeWebhookEvent = async (
                 if (session.payment_status === "paid") {
                     paymentStatus = PaymentStatus.SUCCEEDED;
                     orderStatus = OrderStatus.PAID;
-                }
-
-                // Generate invoice PDF if payment succeeded
-                if (session.payment_status === "paid") {
-                    try {
-                        invoicePdfBuffer = await generateOrderInvoicePdf({
-                            invoiceId: order.payment?.id || "N/A",
-                            orderNumber: order.orderNumber,
-                            customerName: order.user.email,
-                            customerEmail: order.user.email,
-                            orderDate: order.createdAt.toISOString(),
-                            items: order.items.map((item) => ({
-                                productTitle:
-                                    item.productTitleSnapshot ||
-                                    item.product.title,
-                                qty: item.qty,
-                                unitPrice: item.unitPriceAmount,
-                                lineTotal: item.lineTotalAmount,
-                            })),
-                            subtotal: order.subtotalAmount,
-                            discount: order.discountAmount,
-                            shipping: order.shippingAmount,
-                            giftAddon: order.giftAddonAmount,
-                            totalAmount: order.totalAmount,
-                            transactionId:
-                                order.payment?.transactionId || "N/A",
-                            paymentDate: new Date().toISOString(),
-                        });
-
-                        console.log(
-                            `✅ Invoice PDF generated for order ${orderId}`,
-                        );
-                    } catch (pdfError) {
-                        console.error(
-                            "❌ Error generating invoice PDF:",
-                            pdfError,
-                        );
-                    }
                 }
 
                 const updatedPayment = await tx.payment.update({
@@ -451,6 +409,39 @@ const handleStripeWebhookEvent = async (
 
                 return { updatedPayment, updatedOrder };
             });
+
+            // Keep non-DB work outside the transaction to reduce lock duration.
+            if (session.payment_status === "paid") {
+                try {
+                    await generateOrderInvoicePdf({
+                        invoiceId: result.updatedPayment.id,
+                        orderNumber: order.orderNumber,
+                        customerName: order.user.email,
+                        customerEmail: order.user.email,
+                        orderDate: order.createdAt.toISOString(),
+                        items: order.items.map((item) => ({
+                            productTitle:
+                                item.productTitleSnapshot || item.product.title,
+                            qty: item.qty,
+                            unitPrice: item.unitPriceAmount,
+                            lineTotal: item.lineTotalAmount,
+                        })),
+                        subtotal: order.subtotalAmount,
+                        discount: order.discountAmount,
+                        shipping: order.shippingAmount,
+                        giftAddon: order.giftAddonAmount,
+                        totalAmount: order.totalAmount,
+                        transactionId: result.updatedPayment.transactionId,
+                        paymentDate: new Date().toISOString(),
+                    });
+
+                    console.log(
+                        `✅ Invoice PDF generated for order ${orderId}`,
+                    );
+                } catch (pdfError) {
+                    console.error("❌ Error generating invoice PDF:", pdfError);
+                }
+            }
 
             // Send confirmation email
             if (session.payment_status === "paid") {

@@ -2,18 +2,23 @@ import { Prisma } from "../../generated/prisma/client";
 import { IAuditLog } from "../interface/logging.interface";
 import { prisma } from "../lib/prisma";
 
-export const logAudit = async ({
-    actorRole,
-    actorUserId,
-    action,
-    entityType,
-    entityId,
-    beforeState,
-    afterState,
-    ipAddress,
-    userAgent,
-}: IAuditLog) => {
-    await prisma.auditLog.create({
+export const logAudit = async (
+    {
+        actorRole,
+        actorUserId,
+        action,
+        entityType,
+        entityId,
+        beforeState,
+        afterState,
+        ipAddress,
+        userAgent,
+    }: IAuditLog,
+    tx?: Prisma.TransactionClient,
+) => {
+    const dbClient = tx ?? prisma;
+
+    await dbClient.auditLog.create({
         data: {
             actorUserId,
             actorRole,

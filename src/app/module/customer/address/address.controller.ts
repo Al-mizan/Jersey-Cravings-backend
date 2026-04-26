@@ -37,8 +37,9 @@ const createAddress = catchAsync(async (req: Request, res: Response) => {
 });
 
 const updateAddress = catchAsync(async (req: Request, res: Response) => {
+    const { addressId } = req.params;
     const result = await AddressService.updateAddress(
-        req.params.addressId as string,
+        addressId as string,
         req.user as IRequestUser,
         req.body,
         req.ip,
@@ -54,8 +55,9 @@ const updateAddress = catchAsync(async (req: Request, res: Response) => {
 });
 
 const deleteAddress = catchAsync(async (req: Request, res: Response) => {
+    const { addressId } = req.params;
     const result = await AddressService.deleteAddress(
-        req.params.addressId as string,
+        addressId as string,
         req.user as IRequestUser,
         req.ip,
         req.get("user-agent"),
@@ -71,8 +73,9 @@ const deleteAddress = catchAsync(async (req: Request, res: Response) => {
 
 const getCustomerAddressesForAdmin = catchAsync(
     async (req: Request, res: Response) => {
+        const { customerId } = req.params;
         const result = await AddressService.getCustomerAddressesForAdmin(
-            req.params.customerId as string,
+            customerId as string,
         );
 
         sendResponse(res, {

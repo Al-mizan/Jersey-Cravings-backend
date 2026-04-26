@@ -9,8 +9,6 @@ import {
 } from "./loyalty.interface";
 import { logAudit } from "../../../shared/logAudit";
 
-
-
 const getMyLoyaltySummary = async (user: IRequestUser) => {
     const customer = await prisma.customer.findUnique({
         where: { userId: user.userId },

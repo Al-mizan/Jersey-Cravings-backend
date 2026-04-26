@@ -16,6 +16,7 @@ router.patch(
     ReviewController.moderateReview,
 );
 
+// todo: medias er jonno multer use korte hobe, and ekta media model create korte hobe, jekhane media url, type (image/video), reviewId store hobe. then review create/update er somoy media upload handle korte hobe. and review delete hole media guloo delete korte hobe storage theke.
 router.post(
     "/",
     checkAuth(Role.CUSTOMER),

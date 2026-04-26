@@ -3,6 +3,7 @@ import status from "http-status";
 import { catchAsync } from "../../../shared/catchAsync";
 import { sendResponse } from "../../../shared/sendResponse";
 import { AuditLogService } from "./audit-log.service";
+import { IRequestUser } from "../../../interface/requestUser.interface";
 
 const getAuditLogs = catchAsync(async (req: Request, res: Response) => {
     const result = await AuditLogService.getAuditLogs(req.query);
@@ -45,8 +46,36 @@ const getEntityAuditLogs = catchAsync(async (req: Request, res: Response) => {
     });
 });
 
+const getMyActivity = catchAsync(async (req: Request, res: Response) => {
+    const user = req.user as IRequestUser;
+    const result = await AuditLogService.getMyActivity(user, req.query);
+
+    sendResponse(res, {
+        httpStatusCode: status.OK,
+        success: true,
+        message: "My activity retrieved successfully",
+        data: result.data,
+        meta: result.meta,
+    });
+});
+
+const getActivityTimeline = catchAsync(async (req: Request, res: Response) => {
+    const user = req.user as IRequestUser;
+    const days = req.query.days ? parseInt(req.query.days as string) : 7;
+    const result = await AuditLogService.getActivityTimeline(user, days);
+
+    sendResponse(res, {
+        httpStatusCode: status.OK,
+        success: true,
+        message: "Activity timeline retrieved successfully",
+        data: result,
+    });
+});
+
 export const AuditLogController = {
     getAuditLogs,
     getAuditLogById,
     getEntityAuditLogs,
+    getMyActivity,
+    getActivityTimeline,
 };

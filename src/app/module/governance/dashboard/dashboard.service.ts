@@ -36,12 +36,8 @@ const getDashboardSummary = async (): Promise<IDashboardStats> => {
                 _count: true,
             }),
             // Customer stats
-            prisma.customer.groupBy({
-                by: [] as any[],
+            prisma.customer.count({
                 where: { isDeleted: false },
-                _count: {
-                    id: true,
-                },
             }),
             // Audit stats
             prisma.auditLog.groupBy({
@@ -69,7 +65,7 @@ const getDashboardSummary = async (): Promise<IDashboardStats> => {
         ordersByStatus[group.status] = group._count;
     });
 
-    const totalCustomers = customerStats[0]?._count?.id || 0;
+    const totalCustomers = customerStats;
 
     const blockedCustomers = await prisma.user.count({
         where: {

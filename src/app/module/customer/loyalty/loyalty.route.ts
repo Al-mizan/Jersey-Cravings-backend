@@ -12,6 +12,7 @@ router.get(
     checkAuth(Role.CUSTOMER),
     CustomerLoyaltyController.getMyLoyaltySummary,
 );
+
 router.get(
     "/me/transactions",
     checkAuth(Role.CUSTOMER),
@@ -23,12 +24,15 @@ router.get(
     checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
     CustomerLoyaltyController.getActiveLoyaltySetting,
 );
+
+// todo: loyalty setting api testing baki ase
 router.patch(
     "/settings",
     checkAuth(Role.SUPER_ADMIN),
     validateRequest(CustomerLoyaltyValidation.updateLoyaltySettingZodSchema),
     CustomerLoyaltyController.updateLoyaltySetting,
 );
+
 router.get(
     "/customer/:customerId",
     checkAuth(Role.ADMIN, Role.SUPER_ADMIN),

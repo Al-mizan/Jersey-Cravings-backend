@@ -1,5 +1,4 @@
 import status from "http-status";
-import { ReferralRewardStatus } from "../../../../generated/prisma/client";
 import AppError from "../../../errorHelpers/AppError";
 import { IRequestUser } from "../../../interface/requestUser.interface";
 import { prisma } from "../../../lib/prisma";
@@ -9,32 +8,65 @@ import {
     IReferralEventQueryParams,
 } from "./referral.interface";
 import { logAudit } from "../../../shared/logAudit";
+import { Prisma, ReferralRewardStatus } from "../../../../generated/prisma/client";
+import { generateReferralCode, getUniqueTargets, MAX_REFERRAL_CODE_RETRIES } from "./referral.utils";
+
 
 const getOrCreateMyReferralCode = async (user: IRequestUser) => {
     const customer = await prisma.customer.findUnique({
         where: { userId: user.userId },
     });
+
     if (!customer || customer.isDeleted) {
         throw new AppError(status.NOT_FOUND, "Customer not found");
     }
 
+    // Fast path
     const existingCode = await prisma.referralCode.findUnique({
         where: { ownerCustomerId: customer.id },
     });
+    if (existingCode) return existingCode;
 
-    if (existingCode) {
-        return existingCode;
+    for (let attempt = 0; attempt < MAX_REFERRAL_CODE_RETRIES; attempt++) {
+        const code = generateReferralCode();
+
+        try {
+            return await prisma.referralCode.create({
+                data: {
+                    ownerCustomerId: customer.id,
+                    code,
+                    isActive: true,
+                },
+            });
+        } catch (error: unknown) {
+            if (
+                error instanceof Prisma.PrismaClientKnownRequestError &&
+                error.code === "P2002"
+            ) {
+                const targets = getUniqueTargets(error);
+
+                // Another request already created code for this customer
+                if (targets.includes("ownerCustomerId")) {
+                    const alreadyCreated = await prisma.referralCode.findUnique({
+                        where: { ownerCustomerId: customer.id },
+                    });
+                    if (alreadyCreated) return alreadyCreated;
+                }
+
+                // Code collision: retry with a new random code
+                if (targets.includes("code")) {
+                    continue;
+                }
+            }
+
+            throw error;
+        }
     }
 
-    const code = `JC-${customer.id.slice(0, 6).toUpperCase()}`;
-
-    return await prisma.referralCode.create({
-        data: {
-            ownerCustomerId: customer.id,
-            code,
-            isActive: true,
-        },
-    });
+    throw new AppError(
+        status.CONFLICT,
+        "Unable to generate a unique referral code, please retry",
+    );
 };
 
 const getMyReferralEvents = async (

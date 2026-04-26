@@ -6,7 +6,6 @@ import { ProductVariantRoutes } from "../module/catalog/product-variant/product-
 import { ProductMediaRoutes } from "../module/catalog/product-media/product-media.route";
 import { AdminRoutes } from "../module/governance/admin/admin.route";
 import { AuditLogRoutes } from "../module/governance/audit-log/audit-log.route";
-import { ActivityRoutes } from "../module/governance/activity/activity.route";
 import { BulkActionRoutes } from "../module/governance/bulk-action/bulk-action.route";
 import { DashboardRoutes } from "../module/governance/dashboard/dashboard.route";
 import { CustomerProfileRoutes } from "../module/customer/profile/profile.route";
@@ -35,7 +34,6 @@ router.use("/products/:productId/media", ProductMediaRoutes);
 // Governance routes (admin)
 router.use("/admins", AdminRoutes);
 router.use("/audit-logs", AuditLogRoutes);
-router.use("/activity", ActivityRoutes);
 router.use("/bulk-actions", BulkActionRoutes);
 router.use("/dashboard", DashboardRoutes);
 

@@ -12,6 +12,8 @@ import { Role } from "../../../../generated/prisma/enums";
 
 const router = Router();
 
+// todo: verify all routes using postman to ensure validation and auth are working as expected
+
 // Bulk publish products
 router.post(
     "/products/publish",

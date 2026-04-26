@@ -5,7 +5,6 @@ import { prisma } from "../../../lib/prisma";
 import { IAddToCartPayload, IUpdateCartItemPayload } from "./cart.interface";
 import { logAudit } from "../../../shared/logAudit";
 
-
 const getMyCart = async (user: IRequestUser) => {
     const cart = await prisma.cart.upsert({
         where: { userId: user.userId },
@@ -53,71 +52,75 @@ const addToCart = async (
     ipAddress?: string,
     userAgent?: string,
 ) => {
-    const variant = await prisma.productVariant.findUnique({
-        where: { id: payload.variantId },
-        include: { product: true },
-    });
+    return await prisma.$transaction(async (tx) => {
+        const variant = await tx.productVariant.findUnique({
+            where: { id: payload.variantId },
+            include: { product: true },
+        });
 
-    if (!variant || !variant.isActive || variant.product.isDeleted) {
-        throw new AppError(status.NOT_FOUND, "Variant not found");
-    }
+        if (!variant || !variant.isActive || variant.product.isDeleted) {
+            throw new AppError(status.NOT_FOUND, "Variant not found");
+        }
 
-    if (variant.stockQty < payload.qty) {
-        throw new AppError(status.BAD_REQUEST, "Insufficient stock");
-    }
+        if (variant.stockQty < payload.qty) {
+            throw new AppError(status.BAD_REQUEST, "Insufficient stock");
+        }
 
-    const cart = await prisma.cart.upsert({
-        where: { userId: user.userId },
-        update: {},
-        create: { userId: user.userId },
-    });
+        const cart = await tx.cart.upsert({
+            where: { userId: user.userId },
+            update: {},
+            create: { userId: user.userId },
+        });
 
-    const existingItem = await prisma.cartItem.findUnique({
-        where: {
-            cartId_variantId: {
+        const existingItem = await tx.cartItem.findUnique({
+            where: {
+                cartId_variantId: {
+                    cartId: cart.id,
+                    variantId: payload.variantId,
+                },
+            },
+        });
+
+        const nextQty = (existingItem?.qty || 0) + payload.qty;
+        if (nextQty > variant.stockQty) {
+            throw new AppError(
+                status.BAD_REQUEST,
+                "Requested quantity exceeds stock",
+            );
+        }
+
+        const result = await tx.cartItem.upsert({
+            where: {
+                cartId_variantId: {
+                    cartId: cart.id,
+                    variantId: payload.variantId,
+                },
+            },
+            update: { qty: nextQty },
+            create: {
                 cartId: cart.id,
                 variantId: payload.variantId,
+                qty: payload.qty,
             },
-        },
-    });
+        });
 
-    const result = await prisma.cartItem.upsert({
-        where: {
-            cartId_variantId: {
-                cartId: cart.id,
-                variantId: payload.variantId,
+        await logAudit(
+            {
+                actorRole: user.role,
+                actorUserId: user.userId,
+                action: "ADD_ITEM",
+                entityType: "Cart",
+                entityId: cart.id,
+                beforeState: existingItem || {},
+                afterState: result,
+                ipAddress,
+                userAgent,
             },
-        },
-        update: {
-            qty: (existingItem?.qty || 0) + payload.qty,
-        },
-        create: {
-            cartId: cart.id,
-            variantId: payload.variantId,
-            qty: payload.qty,
-        },
-    });
-
-    if (result.qty > variant.stockQty) {
-        throw new AppError(
-            status.BAD_REQUEST,
-            "Requested quantity exceeds stock",
+            tx,
         );
-    }
 
-    await logAudit({
-        actorRole: user.role,
-        actorUserId: user.userId,
-        action: "ADD_ITEM",
-        entityType: "Cart",
-        entityId: cart.id,
-        beforeState: existingItem || {},
-        afterState: result,
-        ipAddress,
-        userAgent,
+        return result;
     });
-
-    return result;
 };
 
 const updateCartItem = async (
@@ -142,25 +145,29 @@ const updateCartItem = async (
     if (cartItem.variant.stockQty < payload.qty) {
         throw new AppError(status.BAD_REQUEST, "Insufficient stock");
     }
+    return await prisma.$transaction(async (tx) => {
+        const updated = await tx.cartItem.update({
+            where: { id: cartItemId },
+            data: { qty: payload.qty },
+        });
 
-    const updated = await prisma.cartItem.update({
-        where: { id: cartItemId },
-        data: { qty: payload.qty },
+        await logAudit(
+            {
+                actorRole: user.role,
+                actorUserId: user.userId,
+                action: "UPDATE_ITEM",
+                entityType: "CartItem",
+                entityId: cartItem.id,
+                beforeState: cartItem,
+                afterState: updated,
+                ipAddress,
+                userAgent,
+            },
+            tx,
+        );
+
+        return updated;
     });
-
-    await logAudit({
-        actorRole: user.role,
-        actorUserId: user.userId,
-        action: "UPDATE_ITEM",
-        entityType: "CartItem",
-        entityId: cartItem.id,
-        beforeState: cartItem,
-        afterState: updated,
-        ipAddress,
-        userAgent,
-    });
-
-    return updated;
 };
 
 const removeCartItem = async (

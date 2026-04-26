@@ -17,7 +17,12 @@ const handleAutoExpiry = async () => {
                     ],
                 },
                 status: {
-                    notIn: [OrderStatus.CANCELLED, OrderStatus.DELIVERED, OrderStatus.SHIPPED, OrderStatus.EXPIRED],
+                    notIn: [
+                        OrderStatus.CANCELLED,
+                        OrderStatus.DELIVERED,
+                        OrderStatus.SHIPPED,
+                        OrderStatus.EXPIRED,
+                    ],
                 },
                 createdAt: {
                     lt: oneHourAgo,
@@ -48,7 +53,9 @@ const handleAutoExpiry = async () => {
 
                 // Release inventory
                 await releaseInventory(order.id, tx);
-                console.log(`Auto-expired Order ${order.orderNumber} (ID: ${order.id}) and released inventory.`);
+                console.log(
+                    `Auto-expired Order ${order.orderNumber} (ID: ${order.id}) and released inventory.`,
+                );
             });
         }
     } catch (error) {
@@ -73,10 +80,10 @@ const handleStuckProcessing = async () => {
         if (stuckOrders.length === 0) return;
 
         for (const order of stuckOrders) {
-            await prisma.$transaction(async (tx) => {
-                await markForManualReview(order.id, tx);
-                console.log(`Marked Order ${order.orderNumber} (ID: ${order.id}) for manual review (stuck in PROCESSING).`);
-            });
+            await markForManualReview(order.id);
+            console.log(
+                `Marked Order ${order.orderNumber} (ID: ${order.id}) for manual review (stuck in PROCESSING).`,
+            );
         }
     } catch (error) {
         console.error("Error in handleStuckProcessing cron job:", error);
@@ -104,7 +111,9 @@ const handleArchiving = async () => {
                 where: { id: order.id },
                 data: { isActive: false },
             });
-            console.log(`Archived FAILED Order ${order.orderNumber} (ID: ${order.id}).`);
+            console.log(
+                `Archived FAILED Order ${order.orderNumber} (ID: ${order.id}).`,
+            );
         }
 
         // 2. Archive CANCELED orders older than 1 year
@@ -123,7 +132,9 @@ const handleArchiving = async () => {
                 where: { id: order.id },
                 data: { isActive: false },
             });
-            console.log(`Archived CANCELED Order ${order.orderNumber} (ID: ${order.id}).`);
+            console.log(
+                `Archived CANCELED Order ${order.orderNumber} (ID: ${order.id}).`,
+            );
         }
     } catch (error) {
         console.error("Error in handleArchiving cron job:", error);

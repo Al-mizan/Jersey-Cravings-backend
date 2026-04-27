@@ -1,0 +1,20 @@
+model CloudinaryCleanupTask {
+    id       String  @id @default(uuid(7))
+    publicId String
+    url      String
+    context  String? // "ProductMedia", "ReviewMedia", "CustomerProfile", "AdminProfile", etc.
+
+    attempts    Int     @default(0)
+    maxAttempts Int     @default(3)
+    status      String  @default("PENDING") // PENDING, PROCESSING, FAILED, COMPLETED
+    error       String?
+
+    createdAt   DateTime  @default(now())
+    scheduledAt DateTime  @default(now())
+    processedAt DateTime?
+
+    @@index([status], name: "idx_cleanup_task_status")
+    @@index([scheduledAt], name: "idx_cleanup_task_scheduled_at")
+    @@index([status, scheduledAt], name: "idx_cleanup_task_status_scheduled")
+    @@map("cloudinary_cleanup_tasks")
+}

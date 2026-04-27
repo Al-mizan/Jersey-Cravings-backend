@@ -14,6 +14,8 @@ import { IRequestUser } from "../../../interface/requestUser.interface";
 import { Role, UserStatus } from "../../../../generated/prisma/client";
 import { auth } from "../../../lib/auth";
 import { logAudit } from "../../../shared/logAudit";
+import { queueSingleMediaReplacementCleanup } from "../../../shared/singleFieldMediaService";
+import { logger } from "../../../lib/logger";
 
 const createAdmin = async (
     payload: ICreateAdminPayload,
@@ -73,7 +75,10 @@ const createAdmin = async (
 
         return adminData;
     } catch (error: any) {
-        console.log("Error creating admin: ", error);
+        logger.error("Error creating admin profile after auth signup", {
+            userId: userData.user.id,
+            error,
+        });
         await prisma.user.delete({
             where: {
                 id: userData.user.id,
@@ -179,21 +184,30 @@ const updateAdmin = async (
     }
 
     const beforeState = { ...admin };
-    const updatedAdmin = await prisma.admin.update({
-        where: { id },
-        data: payload,
-        include: {
-            user: {
-                select: {
-                    id: true,
-                    email: true,
-                    role: true,
-                    status: true,
-                    createdAt: true,
-                    updatedAt: true,
+    const updatedAdmin = await prisma.$transaction(async (tx) => {
+        await queueSingleMediaReplacementCleanup({
+            tx,
+            oldUrl: admin.profilePhoto,
+            newUrl: payload.profilePhoto,
+            context: "AdminProfile",
+        });
+
+        return tx.admin.update({
+            where: { id },
+            data: payload,
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        email: true,
+                        role: true,
+                        status: true,
+                        createdAt: true,
+                        updatedAt: true,
+                    },
                 },
             },
-        },
+        });
     });
 
     // Audit log

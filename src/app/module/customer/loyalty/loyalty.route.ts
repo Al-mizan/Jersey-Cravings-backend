@@ -25,7 +25,6 @@ router.get(
     CustomerLoyaltyController.getActiveLoyaltySetting,
 );
 
-// todo: loyalty setting api testing baki ase
 router.patch(
     "/settings",
     checkAuth(Role.SUPER_ADMIN),

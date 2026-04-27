@@ -41,7 +41,9 @@ interface EnvConfig {
     STRIPE: {
         SECRET_KEY: string;
         WEBHOOK_SECRET: string;
-    };
+    },
+    ENABLE_MEDIA_CLEANUP_WORKER: string;
+    MEDIA_CLEANUP_CRON_SCHEDULE: string;
 }
 
 const loadEnvVariables = (): EnvConfig => {
@@ -73,6 +75,8 @@ const loadEnvVariables = (): EnvConfig => {
         "SUPER_ADMIN_PASSWORD",
         "STRIPE_SECRET_KEY",
         "STRIPE_WEBHOOK_SECRET",
+        "ENABLE_MEDIA_CLEANUP_WORKER",
+        "MEDIA_CLEANUP_CRON_SCHEDULE",
     ];
 
     requireEnvVariable.forEach((variable) => {
@@ -126,6 +130,8 @@ const loadEnvVariables = (): EnvConfig => {
             SECRET_KEY: process.env.STRIPE_SECRET_KEY as string,
             WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET as string,
         },
+        ENABLE_MEDIA_CLEANUP_WORKER: process.env.ENABLE_MEDIA_CLEANUP_WORKER as string,
+        MEDIA_CLEANUP_CRON_SCHEDULE: process.env.MEDIA_CLEANUP_CRON_SCHEDULE as string,
     };
 };
 

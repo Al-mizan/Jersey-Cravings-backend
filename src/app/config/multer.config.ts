@@ -1,6 +1,20 @@
 import multer from "multer";
 import { CloudinaryStorage } from "multer-storage-cloudinary";
 import { cloudinaryUpload } from "./cloudinary.config";
+import status from "http-status";
+import AppError from "../errorHelpers/AppError";
+
+// "video/mp4",
+// "video/webm",
+const ALLOWED_MIME_TYPES = new Set([
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+    "application/pdf",
+]);
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 const storage = new CloudinaryStorage({
     cloudinary: cloudinaryUpload,
@@ -18,22 +32,38 @@ const storage = new CloudinaryStorage({
             .replace(/[^a-z0-9\-]/g, "");
 
         const uniqueName =
-            Math.random().toString(36).substring(2)+
-            "-"+
-            Date.now()+
-            "-"+
+            Math.random().toString(36).substring(2) +
+            "-" +
+            Date.now() +
+            "-" +
             fileNameWithoutExtension;
 
         const folder = extension === "pdf" ? "pdfs" : "images";
 
-
         return {
-            folder : `ph-healthcare/${folder}`,
+            folder: `Jersey-Cravings/${folder}`,
             public_id: uniqueName,
-            resource_type : "auto"
+            resource_type: "auto",
+        };
+    },
+});
+
+export const multerUpload = multer({
+    storage,
+    limits: {
+        fileSize: MAX_FILE_SIZE,
+    },
+    fileFilter: (req, file, cb) => {
+        if (ALLOWED_MIME_TYPES.has(file.mimetype)) {
+            cb(null, true);
+            return;
         }
-    }
 
-})
-
-export const multerUpload = multer({storage})
+        cb(
+            new AppError(
+                status.BAD_REQUEST,
+                `Unsupported file type: ${file.mimetype}`,
+            ),
+        );
+    },
+});

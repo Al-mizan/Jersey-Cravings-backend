@@ -5,6 +5,7 @@ import { envVars } from "../config/env";
 import { bearer, emailOTP } from "better-auth/plugins";
 import { Role, UserStatus } from "../../generated/prisma/enums";
 import { sendEmail } from "../utils/email";
+import { logger } from "./logger";
 
 export const auth = betterAuth({
     baseURL: envVars.BETTER_AUTH_URL,
@@ -57,14 +58,14 @@ export const auth = betterAuth({
                     });
 
                     if (!user) {
-                        console.error(
+                        logger.error(
                             `User with email ${email} not found. Cannot send verification OTP.`,
                         );
                         return;
                     }
 
                     if (user && user.role === Role.SUPER_ADMIN) {
-                        console.log(
+                        logger.info(
                             `User with email ${email} is a super admin. Skipping sending verification OTP.`,
                         );
                         return;
@@ -154,7 +155,7 @@ export const auth = betterAuth({
     },
 
     trustedOrigins: [
-        process.env.BETTER_AUTH_URL || "http://localhost:5000",
+        envVars.BETTER_AUTH_URL || "http://localhost:5000",
         envVars.FRONTEND_URL,
     ],
 

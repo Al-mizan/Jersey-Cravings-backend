@@ -12,6 +12,11 @@ export interface ICreateReviewPayload {
 export interface IUpdateReviewPayload {
     rating?: number;
     comment?: string;
+    medias?: {
+        publicId: string;
+        secureUrl: string;
+        resourceType: string;
+    }[];
     isApproved?: boolean;
 }
 

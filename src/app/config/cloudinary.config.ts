@@ -2,6 +2,9 @@ import { v2 as cloudinary, UploadApiResponse } from 'cloudinary';
 import { envVars } from './env';
 import status from 'http-status';
 import AppError from '../errorHelpers/AppError';
+import { logger } from '../lib/logger';
+
+type TCloudinaryResourceType = 'image' | 'raw'; // | 'video'
 
 cloudinary.config({
     cloud_name: envVars.CLOUDINARY.CLOUD_NAME,
@@ -48,29 +51,92 @@ export const uploadFileToCloudinary = async (buffer: Buffer, fileName: string): 
             }).end(buffer);
         }); 
     } catch (error) {
-        console.log(`Error uploading file to Cloudinary: ${error}`);
+        logger.error('Cloudinary upload failed', {
+            fileName,
+            error,
+        });
         throw new AppError(status.INTERNAL_SERVER_ERROR, `Error uploading file to Cloudinary: ${error}`);
+    }
+};
+
+export const extractPublicIdFromCloudinaryUrl = (url: string) => {
+    if (!url) {
+        return null;
+    }
+
+    const normalizedUrl = url.split('?')[0];
+    const regex = /\/upload\/(?:v\d+\/)?(.+?)(?:\.[a-zA-Z0-9]+)?$/;
+    const match = normalizedUrl.match(regex);
+
+    return match?.[1] ?? null;
+};
+
+const deleteCloudinaryAssetByPublicId = async (
+    publicId: string,
+    resourceType: TCloudinaryResourceType,
+) => {
+    return cloudinary.uploader.destroy(publicId, {
+        resource_type: resourceType,
+    });
+};
+
+export const deleteFileFromCloudinaryByPublicId = async (
+    publicId: string,
+    resourceType: TCloudinaryResourceType | 'auto' = 'auto',
+) => {
+    if (!publicId) {
+        throw new AppError(status.BAD_REQUEST, 'publicId is required to delete file from Cloudinary');
+    }
+
+    try {
+        if (resourceType !== 'auto') {
+            const response = await deleteCloudinaryAssetByPublicId(publicId, resourceType);
+            logger.info('Cloudinary file cleanup result', {
+                publicId,
+                resourceType,
+                result: response.result,
+            });
+            return response;
+        }
+
+        const resourceTypesToTry: TCloudinaryResourceType[] = ['image', 'raw']; //  'video',
+        for (const type of resourceTypesToTry) {
+            const response = await deleteCloudinaryAssetByPublicId(publicId, type);
+            if (response.result === 'ok' || response.result === 'not found') {
+                logger.info('Cloudinary file cleanup result', {
+                    publicId,
+                    resourceType: type,
+                    result: response.result,
+                });
+                return response;
+            }
+        }
+
+        return null;
+    } catch (error) {
+        logger.error('Cloudinary delete by publicId failed', {
+            publicId,
+            resourceType,
+            error,
+        });
+        throw new AppError(status.INTERNAL_SERVER_ERROR, `Error deleting file ${publicId} from Cloudinary: ${error}`);
     }
 };
 
 export const deleteFileFromCloudinary = async (url: string) => {
     try {
-        const regex = /\/v\d+\/(.+?)(?:\.[a-zA-Z0-9]+)+$/;
-    const match = url.match(regex);
-    if (match && match[1]) {
-        const publicId = match[1];
-        await cloudinary.uploader.destroy(
-            publicId, {
-                resource_type: "image",
-            }
-        );
-        console.log(`File ${publicId} deleted from Cloudinary`);
-    } else {
-        console.log(`File ${url} is not a valid Cloudinary URL`);
-        throw new AppError(status.BAD_REQUEST, `File ${url} is not a valid Cloudinary URL`);
-    }
+        const publicId = extractPublicIdFromCloudinaryUrl(url);
+        if (!publicId) {
+            logger.warn('Invalid Cloudinary URL provided for deletion', { url });
+            throw new AppError(status.BAD_REQUEST, `File ${url} is not a valid Cloudinary URL`);
+        }
+
+        return deleteFileFromCloudinaryByPublicId(publicId, 'auto');
     } catch (error) {
-        console.log(`Error deleting file ${url} from Cloudinary: ${error}`);
+        logger.error('Cloudinary delete by URL failed', {
+            url,
+            error,
+        });
         throw new AppError(status.INTERNAL_SERVER_ERROR, `Error deleting file ${url} from Cloudinary: ${error}`);
     }
 };

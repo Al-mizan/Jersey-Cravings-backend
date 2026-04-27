@@ -5,13 +5,13 @@ import { ProductController } from "./product.controller";
 import { Role } from "../../../../generated/prisma/enums";
 import {
     createProductZodSchema,
+    updateProductStatusZodSchema,
     updateProductZodSchema,
 } from "./product.validation";
 
 const router = Router();
 
-
-// Admin: Full CRUD + state transitions (publish/archive) + soft delete/restore
+// Admin: Full CRUD + unified status transitions + soft delete/restore
 router.post(
     "/",
     checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
@@ -31,18 +31,12 @@ router.patch(
     ProductController.updateProduct,
 );
 
-// Publish (DRAFT -> ACTIVE)
+// Unified status transition endpoint (DRAFT/ACTIVE/ARCHIVED)
 router.patch(
-    "/:id/publish",
+    "/:id/status",
     checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
-    ProductController.publishProduct,
-);
-
-// Archive (ACTIVE/DRAFT -> ARCHIVED)
-router.patch(
-    "/:id/archive",
-    checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
-    ProductController.archiveProduct,
+    validateRequest(updateProductStatusZodSchema),
+    ProductController.updateProductStatus,
 );
 
 // Soft delete

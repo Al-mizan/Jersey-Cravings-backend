@@ -1,352 +1,428 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Payment Invoice - Jersey Cravings</title>
+    <title>Payment Receipt - Jersey Cravings</title>
     <style>
+        :root {
+            --bg: #eef2ff;
+            --surface: #ffffff;
+            --surface-soft: #f8fafc;
+            --line: #dbe3f1;
+            --text: #0f172a;
+            --text-muted: #475569;
+            --brand-1: #0f172a;
+            --brand-2: #1d4ed8;
+            --brand-3: #2563eb;
+            --success-bg: #dcfce7;
+            --success-text: #166534;
+        }
+
         * {
-            margin: 0;
-            padding: 0;
             box-sizing: border-box;
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f5f5f5;
-            color: #333;
-            line-height: 1.6;
+            margin: 0;
+            padding: 18px;
+            background:
+                radial-gradient(circle at top right, rgba(37, 99, 235, 0.16), transparent 35%),
+                radial-gradient(circle at top left, rgba(15, 23, 42, 0.1), transparent 28%),
+                var(--bg);
+            color: var(--text);
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
         }
 
-        .container {
-            max-width: 650px;
+        .mail-shell {
+            max-width: 760px;
             margin: 0 auto;
-            background-color: #ffffff;
-            border-radius: 8px;
+            border-radius: 18px;
             overflow: hidden;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--line);
+            background: var(--surface);
+            box-shadow: 0 14px 40px rgba(15, 23, 42, 0.12);
         }
 
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 40px 30px;
-            text-align: center;
+        .hero {
+            padding: 32px 32px 30px;
+            background: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 58%, var(--brand-3) 100%);
+            color: #ffffff;
+            position: relative;
         }
 
-        .header h1 {
-            font-size: 32px;
-            margin-bottom: 10px;
-            font-weight: bold;
+        .hero::after {
+            content: "";
+            position: absolute;
+            right: -70px;
+            bottom: -70px;
+            width: 220px;
+            height: 220px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.09);
         }
 
-        .header p {
+        .brand {
+            margin: 0;
+            font-size: 23px;
+            font-weight: 800;
+            letter-spacing: 0.2px;
+        }
+
+        .hero p {
+            margin: 10px 0 0;
             font-size: 14px;
-            opacity: 0.9;
+            line-height: 1.6;
+            opacity: 0.95;
+            max-width: 540px;
         }
 
         .content {
-            padding: 40px 30px;
+            padding: 30px 30px 26px;
         }
 
-        .greeting {
-            font-size: 18px;
-            font-weight: 600;
-            margin-bottom: 20px;
-            color: #333;
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0;
+            padding: 7px 14px;
+            border-radius: 999px;
+            background: var(--success-bg);
+            color: var(--success-text);
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.35px;
+            text-transform: uppercase;
         }
 
-        .info-box {
-            background-color: #f9f9f9;
-            border-left: 4px solid #667eea;
-            padding: 20px;
-            margin-bottom: 25px;
-            border-radius: 4px;
+        .heading {
+            margin: 16px 0 8px;
+            font-size: 26px;
+            line-height: 1.22;
         }
 
-        .info-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 12px;
+        .lede {
+            margin: 0;
+            color: var(--text-muted);
             font-size: 14px;
+            line-height: 1.72;
         }
 
-        .info-label {
-            font-weight: 600;
-            color: #333;
-            min-width: 150px;
+        .meta-grid {
+            margin-top: 24px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
         }
 
-        .info-value {
-            color: #666;
-            text-align: right;
+        .meta-card {
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: var(--surface-soft);
+            padding: 14px 15px;
+        }
+
+        .meta-label {
+            margin: 0;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            color: #64748b;
+        }
+
+        .meta-value {
+            margin: 6px 0 0;
+            font-size: 14px;
+            line-height: 1.45;
+            color: var(--text);
+            font-weight: 700;
+            word-break: break-word;
         }
 
         .section-title {
+            margin: 30px 0 12px;
             font-size: 16px;
-            font-weight: 700;
-            color: #333;
-            border-bottom: 2px solid #667eea;
-            padding-bottom: 10px;
-            margin-top: 30px;
-            margin-bottom: 15px;
+            line-height: 1.3;
         }
 
-        .details-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
+        .table-wrap {
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--surface);
+        }
+
+        th,
+        td {
+            padding: 11px 12px;
+            font-size: 13px;
+            border-bottom: 1px solid var(--line);
+            text-align: left;
+            vertical-align: top;
+        }
+
+        thead th {
+            background: #eff6ff;
+            color: #1e3a8a;
+            font-weight: 800;
+        }
+
+        tbody tr:nth-child(even) {
+            background: #f8fafc;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .amount {
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .summary {
+            margin-top: 16px;
+            margin-left: auto;
+            width: min(360px, 100%);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 14px;
+            background: var(--surface-soft);
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             gap: 20px;
-            margin-bottom: 25px;
-        }
-
-        .details-box {
-            background-color: #f9f9f9;
-            padding: 15px;
-            border-radius: 4px;
-        }
-
-        .details-box p {
             margin-bottom: 8px;
-            font-size: 14px;
+            color: #334155;
+            font-size: 13px;
         }
 
-        .details-box .label {
-            font-weight: 600;
-            color: #333;
+        .summary-row:last-child {
+            margin-bottom: 0;
         }
 
-        .amount-box {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 25px;
-            border-radius: 6px;
-            margin: 25px 0;
+        .summary-row.total {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #cbd5e1;
+            color: #0f172a;
+            font-size: 16px;
+            font-weight: 800;
+        }
+
+        .cta {
+            margin-top: 20px;
             text-align: center;
         }
 
-        .amount-label {
-            font-size: 14px;
-            opacity: 0.9;
-            margin-bottom: 10px;
-        }
-
-        .amount-value {
-            font-size: 36px;
-            font-weight: bold;
-        }
-
-        .payment-status {
-            background-color: #d4edda;
-            border: 1px solid #c3e6cb;
-            color: #155724;
-            padding: 15px;
-            border-radius: 4px;
-            margin: 20px 0;
-            text-align: center;
-            font-weight: 600;
-        }
-
-        .download-section {
-            text-align: center;
-            margin: 30px 0;
-            padding-top: 20px;
-            border-top: 1px solid #eee;
-        }
-
-        .download-btn {
+        .cta a {
             display: inline-block;
-            background-color: #667eea;
-            color: white;
-            padding: 12px 30px;
-            border-radius: 4px;
+            text-decoration: none;
+            background: linear-gradient(135deg, var(--brand-2), var(--brand-3));
+            color: #ffffff;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        .help {
+            margin-top: 20px;
+            color: #64748b;
+            font-size: 12px;
+            line-height: 1.75;
+        }
+
+        .help a,
+        .footer a {
+            color: var(--brand-2);
             text-decoration: none;
             font-weight: 600;
-            transition: background-color 0.3s;
-            font-size: 14px;
-        }
-
-        .download-btn:hover {
-            background-color: #5568d3;
         }
 
         .footer {
-            background-color: #f9f9f9;
-            padding: 30px;
+            padding: 16px 24px 20px;
             text-align: center;
-            border-top: 1px solid #eee;
-        }
-
-        .footer p {
+            border-top: 1px solid var(--line);
+            background: #f8fafc;
+            color: #64748b;
             font-size: 12px;
-            color: #666;
-            margin-bottom: 10px;
+            line-height: 1.7;
         }
 
-        .footer a {
-            color: #667eea;
-            text-decoration: none;
-        }
+        @media (max-width: 640px) {
+            body {
+                padding: 10px;
+            }
 
-        .footer a:hover {
-            text-decoration: underline;
-        }
+            .hero,
+            .content {
+                padding-left: 18px;
+                padding-right: 18px;
+            }
 
-        .divider {
-            height: 1px;
-            background-color: #eee;
-            margin: 25px 0;
-        }
+            .heading {
+                font-size: 22px;
+            }
 
-        @media (max-width: 600px) {
-            .details-grid {
+            .meta-grid {
                 grid-template-columns: 1fr;
             }
 
-            .info-row {
-                flex-direction: column;
+            th,
+            td {
+                font-size: 12px;
+                padding: 10px;
             }
 
-            .info-value {
-                text-align: left;
-                margin-top: 5px;
-            }
-
-            .amount-value {
-                font-size: 28px;
-            }
-
-            .header h1 {
-                font-size: 24px;
+            .summary {
+                width: 100%;
             }
         }
     </style>
 </head>
 
 <body>
-    <div class="container">
-        <!-- Header -->
-        <div class="header">
-            <h1>INVOICE</h1>
-            <p>Your Healthcare Payment Receipt</p>
+    <%
+        const formatMoney = (value) => `${Number(value || 0).toFixed(2)} BDT`;
+        const safeItems = Array.isArray(items) ? items : [];
+        const hasDiscount = Number(discount || 0) > 0;
+        const hasShipping = Number(shipping || 0) > 0;
+        const hasGiftAddon = Number(giftAddon || 0) > 0;
+    %>
+
+    <div class="mail-shell">
+        <div class="hero">
+            <h1 class="brand">Jersey Cravings</h1>
+            <p>
+                Payment received for your order.
+                We attached your receipt PDF to this email and saved a cloud copy for future access.
+            </p>
         </div>
 
-        <!-- Content -->
         <div class="content">
-            <div class="greeting">
-                Hello <%= customerName %>,
-            </div>
-
-            <p style="margin-bottom: 20px; color: #666; font-size: 14px;">
-                Your payment for your consultation appointment has been successfully processed. Below is your payment
-                invoice.
+            <p class="badge">Payment Confirmed</p>
+            <h2 class="heading">Thanks, <%= customerName %>!</h2>
+            <p class="lede">
+                Your payment for order <strong><%= orderNumber %></strong> has been completed successfully.
+                Please keep this email as your official payment receipt.
             </p>
 
-            <!-- Invoice Details -->
-            <div class="info-box">
-                <div class="info-row">
-                    <span class="info-label">Invoice ID:</span>
-                    <span class="info-value"><strong>
-                            <%= invoiceId %>
-                        </strong></span>
+            <div class="meta-grid">
+                <div class="meta-card">
+                    <p class="meta-label">Invoice ID</p>
+                    <p class="meta-value"><%= invoiceId %></p>
                 </div>
-                <div class="info-row">
-                    <span class="info-label">Transaction ID:</span>
-                    <span class="info-value">
-                        <%= transactionId %>
-                    </span>
+                <div class="meta-card">
+                    <p class="meta-label">Transaction ID</p>
+                    <p class="meta-value"><%= transactionId %></p>
                 </div>
-                <div class="info-row">
-                    <span class="info-label">Payment Status:</span>
-                    <span class="info-value" style="color: #28a745; font-weight: 600;">✓ PAID</span>
+                <div class="meta-card">
+                    <p class="meta-label">Order Date</p>
+                    <p class="meta-value"><%= orderDate %></p>
                 </div>
-                <div class="info-row">
-                    <span class="info-label">Payment Date:</span>
-                    <span class="info-value">
-                        <%= paymentDate %>
-                    </span>
+                <div class="meta-card">
+                    <p class="meta-label">Payment Date</p>
+                    <p class="meta-value"><%= paymentDate %></p>
                 </div>
             </div>
 
-            <!-- Doctor & Appointment Info -->
-            <div class="section-title">Consultation Details</div>
-            <div class="details-grid">
-                <div class="details-box">
-                    <p><span class="label">Doctor:</span></p>
-                    <p><strong>
-                            <%= doctorName %>
-                        </strong></p>
+            <h3 class="section-title">Order Items</h3>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th class="amount">Qty</th>
+                            <th class="amount">Unit Price</th>
+                            <th class="amount">Line Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% if (safeItems.length> 0) { %>
+                            <% safeItems.forEach((item)=> { %>
+                                <tr>
+                                    <td><%= item.productTitle %></td>
+                                    <td class="amount"><%= item.qty %></td>
+                                    <td class="amount"><%= formatMoney(item.unitPrice) %></td>
+                                    <td class="amount"><%= formatMoney(item.lineTotal) %></td>
+                                </tr>
+                            <% }) %>
+                        <% } else { %>
+                            <tr>
+                                <td colspan="4">No line items available</td>
+                            </tr>
+                        <% } %>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="summary">
+                <div class="summary-row">
+                    <span>Subtotal</span>
+                    <strong><%= formatMoney(subtotal) %></strong>
                 </div>
-                <div class="details-box">
-                    <p><span class="label">Appointment Date:</span></p>
-                    <p><strong>
-                            <%= appointmentDate %>
-                        </strong></p>
+
+                <% if (hasDiscount) { %>
+                    <div class="summary-row">
+                        <span>Discount</span>
+                        <strong>- <%= formatMoney(discount) %></strong>
+                    </div>
+                <% } %>
+
+                <% if (hasShipping) { %>
+                    <div class="summary-row">
+                        <span>Shipping</span>
+                        <strong>+ <%= formatMoney(shipping) %></strong>
+                    </div>
+                <% } %>
+
+                <% if (hasGiftAddon) { %>
+                    <div class="summary-row">
+                        <span>Gift Add-on</span>
+                        <strong>+ <%= formatMoney(giftAddon) %></strong>
+                    </div>
+                <% } %>
+
+                <div class="summary-row total">
+                    <span>Total Paid</span>
+                    <span><%= formatMoney(totalAmount) %></span>
                 </div>
             </div>
 
-            <!-- Amount Section -->
-            <div class="section-title">Payment Summary</div>
-
-            <div style="background-color: #f9f9f9; padding: 20px; border-radius: 4px; margin-bottom: 20px;">
-                <div class="info-row">
-                    <span class="info-label">Consultation Fee:</span>
-                    <span class="info-value"><strong>
-                            <%= amount.toFixed(2) %> BDT
-                        </strong></span>
+            <% if (invoiceUrl) { %>
+                <div class="cta">
+                    <a href="<%= invoiceUrl %>" target="_blank" rel="noopener noreferrer">
+                        Download Receipt PDF
+                    </a>
                 </div>
-            </div>
+            <% } %>
 
-            <div class="amount-box">
-                <div class="amount-label">Total Amount Paid</div>
-                <div class="amount-value">
-                    <%= amount.toFixed(2) %> BDT
-                </div>
-            </div>
-
-            <div class="payment-status">
-                ✓ Payment Confirmed
-            </div>
-
-            <!-- Download Invoice -->
-            <div class="download-section">
-                <p style="margin-bottom: 15px; color: #666; font-size: 14px;">
-                    Your invoice PDF is attached to this email for your records.
-                </p>
-                <% if (invoiceUrl) { %>
-                    <a href="<%= invoiceUrl %>" class="download-btn">Download Invoice PDF</a>
-                    <% } %>
-            </div>
-
-            <div class="divider"></div>
-
-            <!-- Additional Info -->
-            <p style="font-size: 13px; color: #666; margin-bottom: 15px;">
-                <strong>Next Steps:</strong><br>
-                Your appointment has been confirmed. Please log in to your dashboard to view appointment details and
-                prepare for your consultation.
-            </p>
-
-            <p style="font-size: 13px; color: #666;">
-                If you have any questions regarding this payment or need assistance, please don't hesitate to contact
-                our support team.
+            <p class="help">
+                Need help with this payment?
+                Contact <a href="mailto:support@jerseycravings.com">support@jerseycravings.com</a>
+                and include your order number.
             </p>
         </div>
 
-        <!-- Footer -->
         <div class="footer">
-            <p><strong>Jersey Cravings</strong></p>
-            <p>Your Health, Our Priority</p>
-            <p style="margin-top: 15px; font-size: 11px; color: #999;">
-                &copy; 2026 Jersey Cravings. All rights reserved.
-            </p>
-            <p style="margin-top: 10px;">
-                <a href="https://ph-healthcare.com">Visit our website</a> |
-                <a href="mailto:support@ph-healthcare.com">Contact Support</a>
-            </p>
-            <p style="margin-top: 15px; font-size: 11px; color: #999;">
-                This is an automatically generated email. Please do not reply directly to this email.
-            </p>
+            <div><strong>Jersey Cravings</strong></div>
+            <div>&copy; 2026 Jersey Cravings. All rights reserved.</div>
+            <div>
+                <a href="https://jerseycravings.com">Website</a>
+                &nbsp;|&nbsp;
+                <a href="mailto:support@jerseycravings.com">Support</a>
+            </div>
         </div>
     </div>
 </body>

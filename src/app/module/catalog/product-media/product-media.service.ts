@@ -8,7 +8,10 @@ import {
 } from "./product-media.interface";
 import { IRequestUser } from "../../../interface/requestUser.interface";
 import { logAudit } from "../../../shared/logAudit";
-
+import {
+    assertProductExists,
+    queueProductMediaDeletionTask,
+} from "../../../shared/collectionMediaService";
 
 const createProductMedia = async (
     productId: string,
@@ -17,14 +20,7 @@ const createProductMedia = async (
     ipAddress?: string,
     userAgent?: string,
 ) => {
-    // Verify product exists and is not deleted
-    const product = await prisma.product.findUnique({
-        where: { id: productId },
-    });
-
-    if (!product || product.isDeleted) {
-        throw new AppError(status.NOT_FOUND, "Product not found or is deleted");
-    }
+    await assertProductExists(productId);
 
     // Get max sort order
     const maxMedia = await prisma.productMedia.findFirst({
@@ -70,14 +66,7 @@ const getProductMedia = async (
     productId: string,
     queryParams: Partial<IProductMediaQueryParams>,
 ) => {
-    // Verify product exists
-    const product = await prisma.product.findUnique({
-        where: { id: productId },
-    });
-
-    if (!product || product.isDeleted) {
-        throw new AppError(status.NOT_FOUND, "Product not found or is deleted");
-    }
+    await assertProductExists(productId);
 
     const queryBuilder = new QueryBuilder(prisma.productMedia, {
         ...queryParams,
@@ -106,14 +95,7 @@ const getProductMedia = async (
 };
 
 const getMediaById = async (productId: string, mediaId: string) => {
-    // Verify product exists
-    const product = await prisma.product.findUnique({
-        where: { id: productId },
-    });
-
-    if (!product || product.isDeleted) {
-        throw new AppError(status.NOT_FOUND, "Product not found or is deleted");
-    }
+    await assertProductExists(productId);
 
     const media = await prisma.productMedia.findFirst({
         where: {
@@ -140,13 +122,23 @@ const updateMedia = async (
     const media = await getMediaById(productId, mediaId);
 
     const beforeState = { ...media };
-    const updatedMedia = await prisma.productMedia.update({
-        where: { id: mediaId },
-        data: {
+    const updatedMedia = await prisma.$transaction(async (tx) => {
+        const updatePayload = {
             altText:
                 payload.altText !== undefined ? payload.altText : media.altText,
             secureUrl: payload.secureUrl || media.secureUrl,
-        },
+            publicId: payload.publicId || media.publicId,
+            resourceType: payload.resourceType || media.resourceType,
+        };
+
+        if (payload.secureUrl && payload.secureUrl !== media.secureUrl) {
+            await queueProductMediaDeletionTask(media.secureUrl, tx);
+        }
+
+        return tx.productMedia.update({
+            where: { id: mediaId },
+            data: updatePayload,
+        });
     });
 
     // Audit log
@@ -172,14 +164,7 @@ const reorderMedia = async (
     ipAddress?: string,
     userAgent?: string,
 ) => {
-    // Verify product exists
-    const product = await prisma.product.findUnique({
-        where: { id: productId },
-    });
-
-    if (!product || product.isDeleted) {
-        throw new AppError(status.NOT_FOUND, "Product not found or is deleted");
-    }
+    await assertProductExists(productId);
 
     // Verify all media items exist for this product
     const mediaIds = mediaOrder.map((m) => m.id);
@@ -244,8 +229,11 @@ const deleteMedia = async (
     const media = await getMediaById(productId, mediaId);
 
     const beforeState = { ...media };
-    await prisma.productMedia.delete({
-        where: { id: mediaId },
+    await prisma.$transaction(async (tx) => {
+        await queueProductMediaDeletionTask(media.secureUrl, tx);
+        await tx.productMedia.delete({
+            where: { id: mediaId },
+        });
     });
 
     // Audit log

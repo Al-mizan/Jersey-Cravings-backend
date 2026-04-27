@@ -20,7 +20,13 @@ const createOrderZodSchema = z
         notes: z.string().max(500).optional(),
         couponCode: z.string().optional(),
         redeemPoints: z.number().int().nonnegative().optional(),
-        referralCode: z.string().optional(),
+        referralCode: z
+            .string()
+            .trim()
+            .min(3, "Referral code must be at least 3 characters")
+            .max(32, "Referral code is too long")
+            .transform((value) => value.toUpperCase())
+            .optional(),
         giftAddon: z
             .object({
                 category: z.enum([

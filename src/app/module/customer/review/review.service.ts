@@ -10,7 +10,7 @@ import {
     IUpdateReviewPayload,
 } from "./review.interface";
 import { logAudit } from "../../../shared/logAudit";
-
+import { queueReviewMediaDeletionTasks } from "../../../shared/collectionMediaService";
 
 const giveReview = async (
     user: IRequestUser,
@@ -195,6 +195,9 @@ const updateReview = async (
 ) => {
     const review = await prisma.review.findUnique({
         where: { id: reviewId },
+        include: {
+            reviewMedias: true,
+        },
     });
 
     if (!review) {
@@ -209,24 +212,67 @@ const updateReview = async (
     }
 
     const updateData: IUpdateReviewPayload = { ...payload };
+    const incomingMedias = payload.medias;
+    delete updateData.medias;
 
     if (user.role === Role.CUSTOMER) {
         delete updateData.isApproved;
     }
 
-    const updatedReview = await prisma.review.update({
-        where: { id: reviewId },
-        data: updateData,
-        include: {
-            reviewMedias: true,
-            product: {
-                select: {
-                    id: true,
-                    title: true,
-                    slug: true,
+    const updatedReview = await prisma.$transaction(async (tx) => {
+        const updated = await tx.review.update({
+            where: { id: reviewId },
+            data: updateData,
+            include: {
+                reviewMedias: true,
+                product: {
+                    select: {
+                        id: true,
+                        title: true,
+                        slug: true,
+                    },
                 },
             },
-        },
+        });
+
+        if (incomingMedias && incomingMedias.length > 0) {
+            const existingMediaUrls = review.reviewMedias.map(
+                (media) => media.secureUrl,
+            );
+
+            if (existingMediaUrls.length > 0) {
+                await queueReviewMediaDeletionTasks(existingMediaUrls, tx);
+            }
+
+            await tx.reviewMedia.deleteMany({
+                where: { reviewId },
+            });
+
+            await tx.reviewMedia.createMany({
+                data: incomingMedias.map((media) => ({
+                    reviewId,
+                    publicId: media.publicId,
+                    secureUrl: media.secureUrl,
+                    resourceType: media.resourceType,
+                })),
+            });
+
+            return tx.review.findUniqueOrThrow({
+                where: { id: reviewId },
+                include: {
+                    reviewMedias: true,
+                    product: {
+                        select: {
+                            id: true,
+                            title: true,
+                            slug: true,
+                        },
+                    },
+                },
+            });
+        }
+
+        return updated;
     });
 
     await logAudit({
@@ -252,6 +298,9 @@ const deleteReview = async (
 ) => {
     const review = await prisma.review.findUnique({
         where: { id: reviewId },
+        include: {
+            reviewMedias: true,
+        },
     });
 
     if (!review) {
@@ -265,8 +314,15 @@ const deleteReview = async (
         );
     }
 
-    await prisma.review.delete({
-        where: { id: reviewId },
+    await prisma.$transaction(async (tx) => {
+        const mediaUrls = review.reviewMedias.map((media) => media.secureUrl);
+        if (mediaUrls.length > 0) {
+            await queueReviewMediaDeletionTasks(mediaUrls, tx);
+        }
+
+        await tx.review.delete({
+            where: { id: reviewId },
+        });
     });
 
     await logAudit({

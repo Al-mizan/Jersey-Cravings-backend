@@ -12,7 +12,13 @@ import { auth } from "../../lib/auth";
 const registerCustomer = catchAsync(
     async (req: Request, res: Response) => {
         const payload = req.body;
-        const data = await AuthService.registerCustomer(payload);
+        const ipAddress = req.ip;
+        const userAgent = req.get("user-agent");
+        const data = await AuthService.registerCustomer(
+            payload,
+            ipAddress,
+            userAgent,
+        );
 
         const { accessToken, refreshToken, token, ...rest } = data;
         tokenUtils.setAccessTokenCookie(res, accessToken);
@@ -37,7 +43,9 @@ const registerCustomer = catchAsync(
 const loginUser = catchAsync(
     async (req: Request, res: Response) => {
         const payload = req.body;
-        const data = await AuthService.loginUser(payload);
+        const ipAddress = req.ip;
+        const userAgent = req.get("user-agent");
+        const data = await AuthService.loginUser(payload, ipAddress, userAgent);
 
         const { accessToken, refreshToken, token, ...rest } = data;
         tokenUtils.setAccessTokenCookie(res, accessToken);
@@ -76,12 +84,19 @@ const getNewToken = catchAsync(
     async (req: Request, res: Response) => {
         const refreshToken = req.cookies.refreshToken;
         const betterAuthSessionToken = req.cookies["better-auth.session_token"]; // better-auth.session_token is the session token that better-auth uses to manage the session, we can use this token to identify the session and refresh the tokens accordingly
+        const ipAddress = req.ip;
+        const userAgent = req.get("user-agent");
 
         if (!betterAuthSessionToken || !refreshToken) {
             throw new AppError(status.UNAUTHORIZED, 'Session token and refresh token are required');
         }
 
-        const result = await AuthService.getNewToken(refreshToken, betterAuthSessionToken);
+        const result = await AuthService.getNewToken(
+            refreshToken,
+            betterAuthSessionToken,
+            ipAddress,
+            userAgent,
+        );
 
         const { accessToken, refreshToken: newRefreshToken, sessionToken } = result;
 
@@ -106,8 +121,15 @@ const changePassword = catchAsync(
     async (req: Request, res: Response) => {
         const payload = req.body;
         const betterAuthSessionToken = req.cookies['better-auth.session_token'];
+        const ipAddress = req.ip;
+        const userAgent = req.get("user-agent");
 
-        const result = await AuthService.changePassword(payload, betterAuthSessionToken);
+        const result = await AuthService.changePassword(
+            payload,
+            betterAuthSessionToken,
+            ipAddress,
+            userAgent,
+        );
         const { accessToken, refreshToken, token } = result;
 
         tokenUtils.setAccessTokenCookie(res, accessToken);
@@ -126,12 +148,18 @@ const changePassword = catchAsync(
 const logoutUser = catchAsync(
     async (req: Request, res: Response) => {
         const betterAuthSessionToken = req.cookies['better-auth.session_token'];
+        const ipAddress = req.ip;
+        const userAgent = req.get("user-agent");
 
         if (!betterAuthSessionToken) {
             throw new AppError(status.UNAUTHORIZED, 'Session token is required for logout');
         }
 
-        const result = await AuthService.logoutUser(betterAuthSessionToken);
+        const result = await AuthService.logoutUser(
+            betterAuthSessionToken,
+            ipAddress,
+            userAgent,
+        );
         cookieUtils.clearCookie(res, 'accessToken', {
             httpOnly: true,
             secure: true,
@@ -160,7 +188,9 @@ const logoutUser = catchAsync(
 const verifyEmail = catchAsync(
     async (req: Request, res: Response) => {
         const { email, otp } = req.body;
-        await AuthService.verifyEmail(email, otp);
+        const ipAddress = req.ip;
+        const userAgent = req.get("user-agent");
+        await AuthService.verifyEmail(email, otp, ipAddress, userAgent);
 
         sendResponse(res, {
             httpStatusCode: status.OK,
@@ -173,7 +203,9 @@ const verifyEmail = catchAsync(
 const forgetPassword = catchAsync(
     async (req: Request, res: Response) => {
         const { email } = req.body;
-        await AuthService.forgetPassword(email);
+        const ipAddress = req.ip;
+        const userAgent = req.get("user-agent");
+        await AuthService.forgetPassword(email, ipAddress, userAgent);
 
         sendResponse(res, {
             httpStatusCode: status.OK,
@@ -186,7 +218,15 @@ const forgetPassword = catchAsync(
 const resetPassword = catchAsync(
     async (req: Request, res: Response) => {
         const { email, otp, newPassword } = req.body;
-        await AuthService.resetPassword(email, otp, newPassword);
+        const ipAddress = req.ip;
+        const userAgent = req.get("user-agent");
+        await AuthService.resetPassword(
+            email,
+            otp,
+            newPassword,
+            ipAddress,
+            userAgent,
+        );
 
         sendResponse(res, {
             httpStatusCode: status.OK,

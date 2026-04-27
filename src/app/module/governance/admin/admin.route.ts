@@ -9,6 +9,9 @@ import {
     changeUserStatusZodSchema,
     changeUserRoleZodSchema,
 } from "./admin.validation";
+import { multerUpload } from "../../../config/multer.config";
+import { updateMyAdminProfileMiddleware } from "./admin.middleware";
+import { MEDIA_FIELD_CONFIG } from "../../../shared/multerFieldConfig";
 
 const router = Router();
 
@@ -33,11 +36,12 @@ router.get(
     AdminController.getAdminById,
 );
 
-// todo: profile photo upload and update via cloudinary (only in update route, not in create route)
 // Update admin (own profile or SUPER_ADMIN can update any)
 router.patch(
     "/:id",
     checkAuth(Role.SUPER_ADMIN, Role.ADMIN),
+    multerUpload.single(MEDIA_FIELD_CONFIG.ADMIN_PROFILE_PHOTO),
+    updateMyAdminProfileMiddleware,
     validateRequest(updateAdminZodSchema),
     AdminController.updateAdmin,
 );

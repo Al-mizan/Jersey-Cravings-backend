@@ -53,7 +53,7 @@ const updateProduct = catchAsync(async (req: Request, res: Response) => {
     const user = req.user as IRequestUser;
     const ipAddress = req.ip;
     const userAgent = req.get("user-agent");
-    const {id} = req.params;
+    const { id } = req.params;
 
     const result = await ProductService.updateProduct(
         id as string,
@@ -71,14 +71,16 @@ const updateProduct = catchAsync(async (req: Request, res: Response) => {
     });
 });
 
-const publishProduct = catchAsync(async (req: Request, res: Response) => {
+const updateProductStatus = catchAsync(async (req: Request, res: Response) => {
     const user = req.user as IRequestUser;
     const ipAddress = req.ip;
     const userAgent = req.get("user-agent");
-
     const { id } = req.params;
-    const result = await ProductService.publishProduct(
+    const { status: newStatus } = req.body;
+
+    const result = await ProductService.updateProductStatus(
         id as string,
+        newStatus,
         user,
         ipAddress,
         userAgent,
@@ -87,28 +89,7 @@ const publishProduct = catchAsync(async (req: Request, res: Response) => {
     sendResponse(res, {
         httpStatusCode: status.OK,
         success: true,
-        message: "Product published successfully",
-        data: result,
-    });
-});
-
-const archiveProduct = catchAsync(async (req: Request, res: Response) => {
-    const user = req.user as IRequestUser;
-    const ipAddress = req.ip;
-    const userAgent = req.get("user-agent");
-
-    const { id } = req.params;
-    const result = await ProductService.archiveProduct(
-        id as string,
-        user,
-        ipAddress,
-        userAgent,
-    );
-
-    sendResponse(res, {
-        httpStatusCode: status.OK,
-        success: true,
-        message: "Product archived successfully",
+        message: "Product status updated successfully",
         data: result,
     });
 });
@@ -160,8 +141,7 @@ export const ProductController = {
     getAllProducts,
     getProductById,
     updateProduct,
-    publishProduct,
-    archiveProduct,
+    updateProductStatus,
     softDeleteProduct,
     restoreProduct,
 };

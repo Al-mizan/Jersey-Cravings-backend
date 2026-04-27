@@ -10,7 +10,7 @@ import {
     IUpdateMyProfilePayload,
 } from "./profile.interface";
 import { logAudit } from "../../../shared/logAudit";
-
+import { queueSingleMediaReplacementCleanup } from "../../../shared/singleFieldMediaService";
 
 const getMyProfile = async (user: IRequestUser) => {
     const customer = await prisma.customer.findUnique({
@@ -50,9 +50,18 @@ const updateMyProfile = async (
     }
 
     const beforeState = { ...customer };
-    const updatedCustomer = await prisma.customer.update({
-        where: { userId: user.userId },
-        data: payload,
+    const updatedCustomer = await prisma.$transaction(async (tx) => {
+        await queueSingleMediaReplacementCleanup({
+            tx,
+            oldUrl: customer.profilePhoto,
+            newUrl: payload.profilePhoto,
+            context: "CustomerProfile",
+        });
+
+        return tx.customer.update({
+            where: { userId: user.userId },
+            data: payload,
+        });
     });
 
     await logAudit({

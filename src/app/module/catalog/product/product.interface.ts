@@ -1,4 +1,5 @@
 import { IqueryParams } from "../../../interface/query.interface";
+import { ProductStatus } from "../../../../generated/prisma/enums";
 
 export interface ICreateProductPayload {
     title: string;
@@ -18,6 +19,10 @@ export interface IUpdateProductPayload {
     tournamentTag?: string;
     jerseyType?: "HOME" | "AWAY" | "THIRD" | "GK" | "SPECIAL";
     categoryId?: string;
+}
+
+export interface IUpdateProductStatusPayload {
+    status: ProductStatus;
 }
 
 export interface IProductQueryParams extends IqueryParams {

@@ -1,5 +1,5 @@
 import status from "http-status";
-import { UserStatus } from "../../../generated/prisma/enums";
+import { Role, UserStatus } from "../../../generated/prisma/enums";
 import AppError from "../../errorHelpers/AppError";
 import { auth } from "../../lib/auth";
 import { prisma } from "../../lib/prisma";
@@ -14,8 +14,14 @@ import { IRequestUser } from "../../interface/requestUser.interface";
 import { envVars } from "../../config/env";
 import { jwtUtils } from "../../utils/jwt";
 import { JwtPayload } from "jsonwebtoken";
+import { logAudit } from "../../shared/logAudit";
+import { logger } from "../../lib/logger";
 
-const registerCustomer = async (payload: IRegisterCustomerPayload) => {
+const registerCustomer = async (
+    payload: IRegisterCustomerPayload,
+    ipAddress?: string,
+    userAgent?: string,
+) => {
     const { email, password, name } = payload;
 
     const data = await auth.api.signUpEmail({
@@ -57,6 +63,21 @@ const registerCustomer = async (payload: IRegisterCustomerPayload) => {
             emailVerified: data.user.emailVerified,
         });
 
+        await logAudit({
+            actorUserId: data.user.id,
+            actorRole: data.user.role as Role,
+            action: "REGISTER",
+            entityType: "Auth",
+            entityId: data.user.id,
+            beforeState: {},
+            afterState: {
+                email: data.user.email,
+                role: data.user.role,
+            },
+            ipAddress,
+            userAgent,
+        });
+
         return {
             ...data,
             accessToken,
@@ -64,7 +85,10 @@ const registerCustomer = async (payload: IRegisterCustomerPayload) => {
             customer,
         };
     } catch (error) {
-        console.log("Transaction Error: ", error);
+        logger.error("Failed to finish customer registration transaction", {
+            userId: data.user.id,
+            error,
+        });
         await prisma.user.delete({
             where: {
                 id: data.user.id,
@@ -74,7 +98,11 @@ const registerCustomer = async (payload: IRegisterCustomerPayload) => {
     }
 };
 
-const loginUser = async (payload: ILoginUserPayload) => {
+const loginUser = async (
+    payload: ILoginUserPayload,
+    ipAddress?: string,
+    userAgent?: string,
+) => {
     const { email, password } = payload;
     const data = await auth.api.signInEmail({
         body: {
@@ -109,6 +137,21 @@ const loginUser = async (payload: ILoginUserPayload) => {
         emailVerified: data.user.emailVerified,
     });
 
+    await logAudit({
+        actorUserId: data.user.id,
+        actorRole: data.user.role as Role,
+        action: "LOGIN",
+        entityType: "Auth",
+        entityId: data.user.id,
+        beforeState: {},
+        afterState: {
+            email: data.user.email,
+            status: data.user.status,
+        },
+        ipAddress,
+        userAgent,
+    });
+
     return {
         ...data,
         accessToken,
@@ -122,12 +165,12 @@ const getMe = async (user: IRequestUser) => {
             id: user.userId,
         },
         include: {
-            customer: true,
             accounts: {
                 select: {
                     providerId: true,
                 },
             },
+            customerProfile: true,
             admin: true,
         },
     });
@@ -139,7 +182,12 @@ const getMe = async (user: IRequestUser) => {
     return userData;
 };
 
-const getNewToken = async (refreshToken: string, sessionToken: string) => {
+const getNewToken = async (
+    refreshToken: string,
+    sessionToken: string,
+    ipAddress?: string,
+    userAgent?: string,
+) => {
     const isSessionTokenExist = await prisma.session.findUnique({
         where: {
             token: sessionToken,
@@ -196,6 +244,20 @@ const getNewToken = async (refreshToken: string, sessionToken: string) => {
         },
     });
 
+    await logAudit({
+        actorUserId: isSessionTokenExist.userId,
+        actorRole: isSessionTokenExist.user.role,
+        action: "REFRESH_TOKEN",
+        entityType: "Auth",
+        entityId: isSessionTokenExist.userId,
+        beforeState: {},
+        afterState: {
+            sessionToken: token,
+        },
+        ipAddress,
+        userAgent,
+    });
+
     return {
         accessToken: newAccessToken,
         refreshToken: newRefreshToken,
@@ -206,6 +268,8 @@ const getNewToken = async (refreshToken: string, sessionToken: string) => {
 const changePassword = async (
     payload: iChangePasswordPayload,
     sessionToken: string,
+    ipAddress?: string,
+    userAgent?: string,
 ) => {
     const session = await auth.api.getSession({
         headers: new Headers({
@@ -247,6 +311,20 @@ const changePassword = async (
         emailVerified: session.user.emailVerified,
     });
 
+    await logAudit({
+        actorUserId: session.user.id,
+        actorRole: session.user.role as Role,
+        action: "CHANGE_PASSWORD",
+        entityType: "Auth",
+        entityId: session.user.id,
+        beforeState: {},
+        afterState: {
+            changed: true,
+        },
+        ipAddress,
+        userAgent,
+    });
+
     return {
         ...result,
         accessToken,
@@ -254,17 +332,48 @@ const changePassword = async (
     };
 };
 
-const logoutUser = async (sessionToken: string) => {
+const logoutUser = async (
+    sessionToken: string,
+    ipAddress?: string,
+    userAgent?: string,
+) => {
+    const session = await auth.api.getSession({
+        headers: new Headers({
+            Authorization: `Bearer ${sessionToken}`,
+        }),
+    });
+
     const result = await auth.api.signOut({
         headers: new Headers({
             Authorization: `Bearer ${sessionToken}`,
         }),
     });
 
+    if (session?.user) {
+        await logAudit({
+            actorUserId: session.user.id,
+            actorRole: session.user.role as Role,
+            action: "LOGOUT",
+            entityType: "Auth",
+            entityId: session.user.id,
+            beforeState: {},
+            afterState: {
+                loggedOut: true,
+            },
+            ipAddress,
+            userAgent,
+        });
+    }
+
     return result;
 };
 
-const verifyEmail = async (email: string, otp: string) => {
+const verifyEmail = async (
+    email: string,
+    otp: string,
+    ipAddress?: string,
+    userAgent?: string,
+) => {
     // google login user should not be able to use verify email feature
     const isUserExist = await prisma.user.findUnique({
         where: {
@@ -310,9 +419,29 @@ const verifyEmail = async (email: string, otp: string) => {
             },
         });
     }
+
+    await logAudit({
+        actorUserId: isUserExist.id,
+        actorRole: isUserExist.role,
+        action: "VERIFY_EMAIL",
+        entityType: "Auth",
+        entityId: isUserExist.id,
+        beforeState: {
+            emailVerified: isUserExist.emailVerified,
+        },
+        afterState: {
+            emailVerified: true,
+        },
+        ipAddress,
+        userAgent,
+    });
 };
 
-const forgetPassword = async (email: string) => {
+const forgetPassword = async (
+    email: string,
+    ipAddress?: string,
+    userAgent?: string,
+) => {
     const isUserExist = await prisma.user.findUnique({
         where: {
             email,
@@ -353,12 +482,28 @@ const forgetPassword = async (email: string) => {
             email,
         },
     });
+
+    await logAudit({
+        actorUserId: isUserExist.id,
+        actorRole: isUserExist.role,
+        action: "FORGET_PASSWORD",
+        entityType: "Auth",
+        entityId: isUserExist.id,
+        beforeState: {},
+        afterState: {
+            otpSent: true,
+        },
+        ipAddress,
+        userAgent,
+    });
 };
 
 const resetPassword = async (
     email: string,
     otp: string,
     newPassword: string,
+    ipAddress?: string,
+    userAgent?: string,
 ) => {
     const isUserExist = await prisma.user.findUnique({
         where: {
@@ -418,6 +563,22 @@ const resetPassword = async (
         where: {
             userId: isUserExist.id,
         },
+    });
+
+    await logAudit({
+        actorUserId: isUserExist.id,
+        actorRole: isUserExist.role,
+        action: "RESET_PASSWORD",
+        entityType: "Auth",
+        entityId: isUserExist.id,
+        beforeState: {
+            needPasswordChange: isUserExist.needPasswordChange,
+        },
+        afterState: {
+            needPasswordChange: false,
+        },
+        ipAddress,
+        userAgent,
     });
 };
 

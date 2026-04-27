@@ -75,6 +75,10 @@ export const updateProductZodSchema = z.object({
         .optional(),
 });
 
+export const updateProductStatusZodSchema = z.object({
+    status: z.enum(["DRAFT", "ACTIVE", "ARCHIVED"]),
+});
+
 export const queryProductZodSchema = z.object({
     searchTerm: z.string().optional(),
     status: z.enum(["DRAFT", "ACTIVE", "ARCHIVED"]).optional(),

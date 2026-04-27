@@ -6,6 +6,7 @@ import {
     PaymentStatus,
 } from "../../../../generated/prisma/enums";
 import { releaseInventory, markForManualReview } from "../order/order.utils";
+import { logger } from "../../../lib/logger";
 
 const handleAutoExpiry = async () => {
     try {
@@ -62,13 +63,14 @@ const handleAutoExpiry = async () => {
 
                 // Release inventory
                 await releaseInventory(order.id, tx);
-                console.log(
-                    `Auto-expired Order ${order.orderNumber} (ID: ${order.id}) and released inventory.`,
-                );
+                logger.info("Auto-expired order and released inventory", {
+                    orderNumber: order.orderNumber,
+                    orderId: order.id,
+                });
             });
         }
     } catch (error) {
-        console.error("Error in handleAutoExpiry cron job:", error);
+        logger.error("Error in handleAutoExpiry cron job", { error });
     }
 };
 
@@ -90,12 +92,14 @@ const handleStuckProcessing = async () => {
 
         for (const order of stuckOrders) {
             await markForManualReview(order.id);
-            console.log(
-                `Marked Order ${order.orderNumber} (ID: ${order.id}) for manual review (stuck in PROCESSING).`,
-            );
+            logger.info("Order marked for manual review from cron", {
+                orderNumber: order.orderNumber,
+                orderId: order.id,
+                reason: "stuck_in_processing",
+            });
         }
     } catch (error) {
-        console.error("Error in handleStuckProcessing cron job:", error);
+        logger.error("Error in handleStuckProcessing cron job", { error });
     }
 };
 
@@ -120,9 +124,10 @@ const handleArchiving = async () => {
                 where: { id: order.id },
                 data: { isActive: false },
             });
-            console.log(
-                `Archived FAILED Order ${order.orderNumber} (ID: ${order.id}).`,
-            );
+            logger.info("Archived failed order", {
+                orderNumber: order.orderNumber,
+                orderId: order.id,
+            });
         }
 
         // 2. Archive CANCELED orders older than 1 year
@@ -141,22 +146,23 @@ const handleArchiving = async () => {
                 where: { id: order.id },
                 data: { isActive: false },
             });
-            console.log(
-                `Archived CANCELED Order ${order.orderNumber} (ID: ${order.id}).`,
-            );
+            logger.info("Archived canceled order", {
+                orderNumber: order.orderNumber,
+                orderId: order.id,
+            });
         }
     } catch (error) {
-        console.error("Error in handleArchiving cron job:", error);
+        logger.error("Error in handleArchiving cron job", { error });
     }
 };
 
 export const initPaymentCron = () => {
     // Run every 15 minutes
     cron.schedule("*/15 * * * *", async () => {
-        console.log("Running Order PaymentStatus transition cron job...");
+        logger.info("Running order payment status transition cron job");
         await handleAutoExpiry();
         await handleStuckProcessing();
         await handleArchiving();
     });
-    console.log("Order PaymentStatus transition cron job initialized.");
+    logger.info("Order payment status transition cron job initialized");
 };

@@ -20,53 +20,20 @@ import {
     IUpdateOrderStatusPayload,
 } from "./order.interface";
 import { logAudit } from "../../../shared/logAudit";
+import {
+    BANGLADESH_DIVISIONS,
+    canMoveToProcessing,
+    generateOrderNumber,
+    getDiscountAmount,
+    isValidTransition,
+} from "./order.utils";
 
 const SHIPPING_CHARGE_DHAKA = 80;
 const SHIPPING_CHARGE_OUTSIDE_DHAKA = 120;
 const GIFT_BASE_CHARGE = 30;
 const GIFT_CUSTOM_MESSAGE_CHARGE = 20;
 
-const BANGLADESH_DIVISIONS = new Set([
-    "dhaka",
-    "chattogram",
-    "khulna",
-    "rajshahi",
-    "barishal",
-    "sylhet",
-    "rangpur",
-    "mymensingh",
-]);
-
 const normalizeText = (value: string) => value.trim().toLowerCase();
-
-const generateOrderNumber = () => {
-    const now = new Date();
-    const y = now.getUTCFullYear();
-    const m = String(now.getUTCMonth() + 1).padStart(2, "0");
-    const d = String(now.getUTCDate()).padStart(2, "0");
-    const suffix = randomUUID().replace(/-/g, "").slice(0, 6).toUpperCase();
-    return `JC-${y}${m}${d}-${suffix}`;
-};
-
-const getDiscountAmount = (
-    coupon: {
-        discountType: "PERCENT" | "FLAT";
-        value: number;
-        maxDiscountAmount: number | null;
-    },
-    subtotal: number,
-) => {
-    if (coupon.discountType === "FLAT") {
-        return Math.min(subtotal, coupon.value);
-    }
-
-    const rawDiscount = Math.floor((subtotal * coupon.value) / 100);
-    if (!coupon.maxDiscountAmount) {
-        return rawDiscount;
-    }
-
-    return Math.min(rawDiscount, coupon.maxDiscountAmount);
-};
 
 const createOrder = async (
     user: IRequestUser,
@@ -77,6 +44,7 @@ const createOrder = async (
     const fulfillmentMethod =
         payload.fulfillmentMethod || FulfillmentMethod.DELIVERY;
     const paymentMethod = payload.paymentMethod || PaymentMethod.STRIPE;
+    const normalizedReferralCode = payload.referralCode?.trim().toUpperCase();
 
     if (
         paymentMethod === PaymentMethod.COD &&
@@ -115,17 +83,48 @@ const createOrder = async (
         throw new AppError(status.BAD_REQUEST, "Cart is empty");
     }
 
-    const invalidItems = cart.items.find(
-        (item) =>
-            !item.variant.isActive ||
-            item.variant.product.isDeleted ||
-            item.variant.product.status !== ProductStatus.ACTIVE,
-    );
+    const unavailableItems = cart.items
+        .map((item) => {
+            if (!item.variant.isActive) {
+                return {
+                    sku: item.variant.sku,
+                    reason: "variant_inactive",
+                };
+            }
 
-    if (invalidItems) {
+            if (item.variant.product.isDeleted) {
+                return {
+                    sku: item.variant.sku,
+                    reason: "product_deleted",
+                };
+            }
+
+            if (item.variant.product.status !== ProductStatus.ACTIVE) {
+                return {
+                    sku: item.variant.sku,
+                    reason: `product_status_${item.variant.product.status.toLowerCase()}`,
+                };
+            }
+
+            return null;
+        })
+        .filter(
+            (
+                item,
+            ): item is {
+                sku: string;
+                reason: string;
+            } => item !== null,
+        );
+
+    if (unavailableItems.length > 0) {
+        const details = unavailableItems
+            .map((item) => `${item.sku}(${item.reason})`)
+            .join(", ");
+
         throw new AppError(
             status.BAD_REQUEST,
-            "Cart contains unavailable items",
+            `Cart contains unavailable items: ${details}`,
         );
     }
 
@@ -389,32 +388,43 @@ const createOrder = async (
             });
         }
 
-        if (payload.referralCode) {
+        if (normalizedReferralCode) {
             const referralCode = await tx.referralCode.findUnique({
-                where: { code: payload.referralCode },
+                where: { code: normalizedReferralCode },
+                include: {
+                    ownerCustomer: {
+                        select: {
+                            id: true,
+                            userId: true,
+                        },
+                    },
+                },
             });
 
-            if (referralCode && referralCode.isActive) {
-                const owner = await tx.customer.findUnique({
-                    where: { id: referralCode.ownerCustomerId },
-                });
+            if (referralCode?.ownerCustomer.userId === user.userId) {
+                throw new AppError(
+                    status.BAD_REQUEST,
+                    "You cannot use your own referral code",
+                );
+            }
 
-                if (owner && owner.userId !== user.userId) {
-                    const rewardPoints = Math.floor(
-                        (totalAmount * 200) / 10000,
-                    );
-                    await tx.referralEvent.create({
-                        data: {
-                            referralCodeId: referralCode.id,
-                            referredCustomerId: customer.id,
-                            referredOrderId: createdOrder.id,
-                            orderAmount: totalAmount,
-                            rewardRateBps: 200,
-                            rewardPoints,
-                            status: ReferralRewardStatus.PENDING,
-                        },
-                    });
-                }
+            if (
+                referralCode &&
+                referralCode.isActive &&
+                referralCode.ownerCustomer.userId !== user.userId
+            ) {
+                const rewardPoints = Math.floor((totalAmount * 200) / 10000);
+                await tx.referralEvent.create({
+                    data: {
+                        referralCodeId: referralCode.id,
+                        referredCustomerId: customer.id,
+                        referredOrderId: createdOrder.id,
+                        orderAmount: totalAmount,
+                        rewardRateBps: 200,
+                        rewardPoints,
+                        status: ReferralRewardStatus.PENDING,
+                    },
+                });
             }
         }
 
@@ -462,12 +472,14 @@ const getMyOrders = async (
     queryParams: IOrderQueryParams,
 ) => {
     const queryBuilder = new QueryBuilder(prisma.order, queryParams, {
+        searchableFields: ["orderNumber", "payment.transactionId"],
         filterableFields: ["status", "paymentStatus", "fulfillmentMethod"],
     });
 
     const [data, total] = await Promise.all([
         queryBuilder
             .where({ userId: user.userId })
+            .search()
             .filter()
             .paginate()
             .sort()
@@ -749,34 +761,6 @@ const getOrderByIdForAdmin = async (orderId: string) => {
     return order;
 };
 
-const isValidTransition = (from: OrderStatus, to: OrderStatus) => {
-    const allowed: Record<OrderStatus, OrderStatus[]> = {
-        [OrderStatus.PENDING_PAYMENT]: [
-            OrderStatus.PAID,
-            OrderStatus.PROCESSING,
-            OrderStatus.CANCELLED,
-            OrderStatus.EXPIRED,
-        ],
-        [OrderStatus.PAID]: [
-            OrderStatus.PROCESSING,
-            OrderStatus.REFUNDED,
-            OrderStatus.CANCELLED,
-        ],
-        [OrderStatus.PROCESSING]: [
-            OrderStatus.SHIPPED,
-            OrderStatus.CANCELLED,
-            OrderStatus.REFUNDED,
-        ],
-        [OrderStatus.SHIPPED]: [OrderStatus.DELIVERED, OrderStatus.REFUNDED],
-        [OrderStatus.DELIVERED]: [],
-        [OrderStatus.CANCELLED]: [],
-        [OrderStatus.REFUNDED]: [],
-        [OrderStatus.EXPIRED]: [],
-    };
-
-    return allowed[from].includes(to);
-};
-
 const updateOrderStatusByAdmin = async (
     orderId: string,
     payload: IUpdateOrderStatusPayload,
@@ -807,20 +791,31 @@ const updateOrderStatusByAdmin = async (
         );
     }
 
+    if (
+        payload.status === OrderStatus.PROCESSING &&
+        !canMoveToProcessing(order)
+    ) {
+        throw new AppError(
+            status.BAD_REQUEST,
+            "Online-paid orders can move to PROCESSING only after payment succeeds",
+        );
+    }
+
     const updated = await prisma.$transaction(async (tx) => {
+        const nextPaymentStatus =
+            payload.status === OrderStatus.REFUNDED
+                ? PaymentStatus.REFUNDED
+                : payload.status === OrderStatus.PAID ||
+                    payload.status === OrderStatus.SHIPPED ||
+                    payload.status === OrderStatus.DELIVERED
+                  ? PaymentStatus.SUCCEEDED
+                  : order.paymentStatus;
+
         const updatedOrder = await tx.order.update({
             where: { id: order.id },
             data: {
                 status: payload.status,
-                paymentStatus:
-                    payload.status === OrderStatus.PAID ||
-                    payload.status === OrderStatus.PROCESSING ||
-                    payload.status === OrderStatus.SHIPPED ||
-                    payload.status === OrderStatus.DELIVERED
-                        ? PaymentStatus.SUCCEEDED
-                        : payload.status === OrderStatus.REFUNDED
-                          ? PaymentStatus.REFUNDED
-                          : order.paymentStatus,
+                paymentStatus: nextPaymentStatus,
                 paidAt:
                     payload.status === OrderStatus.PAID && !order.paidAt
                         ? new Date()

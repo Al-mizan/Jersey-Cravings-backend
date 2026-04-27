@@ -26,6 +26,16 @@ const updateReviewZodSchema = z.object({
         .max(5, "Rating cannot be more than 5")
         .optional(),
     comment: z.string("Comment must be valid").optional(),
+    medias: z
+        .array(
+            z.object({
+                publicId: z.string().min(1, "Public ID is required"),
+                secureUrl: z.string().url("Media URL must be valid"),
+                resourceType: z.string().min(1, "Resource type is required"),
+            }),
+        )
+        .max(6)
+        .optional(),
 });
 
 const moderateReviewZodSchema = z.object({

@@ -4,6 +4,9 @@ import { checkAuth } from "../../../middleware/checkAuth";
 import { validateRequest } from "../../../middleware/validateRequest";
 import { ReviewController } from "./review.controller";
 import { ReviewValidation } from "./review.validation";
+import { multerUpload } from "../../../config/multer.config";
+import { reviewMiddleware } from "./review.middleware";
+import { MEDIA_FIELD_CONFIG } from "../../../shared/multerFieldConfig";
 
 const router = express.Router();
 
@@ -16,10 +19,11 @@ router.patch(
     ReviewController.moderateReview,
 );
 
-// todo: medias er jonno multer use korte hobe, and ekta media model create korte hobe, jekhane media url, type (image/video), reviewId store hobe. then review create/update er somoy media upload handle korte hobe. and review delete hole media guloo delete korte hobe storage theke.
 router.post(
     "/",
     checkAuth(Role.CUSTOMER),
+    multerUpload.fields([MEDIA_FIELD_CONFIG.REVIEW_PHOTOS]),
+    reviewMiddleware,
     validateRequest(ReviewValidation.createReviewZodSchema),
     ReviewController.giveReview,
 );
@@ -29,6 +33,8 @@ router.get("/my-reviews", checkAuth(Role.CUSTOMER), ReviewController.myReviews);
 router.patch(
     "/:id",
     checkAuth(Role.CUSTOMER),
+    multerUpload.fields([MEDIA_FIELD_CONFIG.REVIEW_PHOTOS]),
+    reviewMiddleware,
     validateRequest(ReviewValidation.updateReviewZodSchema),
     ReviewController.updateReview,
 );

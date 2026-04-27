@@ -21,8 +21,15 @@ import {
     IRefundPaymentPayload,
     IWebhookFinalizePaymentPayload,
 } from "./payment.interface";
-import { generateOrderInvoicePdf } from "./payment.utils";
+import {
+    generateAndUploadOrderInvoicePdf,
+    IInvoiceData,
+    buildInvoicePayload,
+    formatDateTimeForEmail,
+    getJsonObject,
+} from "./payment.utils";
 import { logAudit } from "../../../shared/logAudit";
+import { logger } from "../../../lib/logger";
 
 const initiatePayment = async (
     user: IRequestUser,
@@ -425,7 +432,10 @@ const handleStripeWebhookEvent = async (
     });
 
     if (existingEvent) {
-        console.log(`Event ${event.id} already processed. Skipping`);
+        logger.info("Stripe event already processed", {
+            eventId: event.id,
+            paymentId: existingEvent.id,
+        });
         return { message: `Event ${event.id} already processed` };
     }
 
@@ -435,7 +445,9 @@ const handleStripeWebhookEvent = async (
             const orderId = session.metadata?.orderId;
 
             if (!orderId) {
-                console.error("⚠️ Missing orderId in Stripe session metadata");
+                logger.error("Missing orderId in Stripe session metadata", {
+                    eventId: event.id,
+                });
                 return { message: "Missing orderId in metadata" };
             }
 
@@ -459,8 +471,22 @@ const handleStripeWebhookEvent = async (
             });
 
             if (!order) {
-                console.error(`⚠️ Order ${orderId} not found`);
+                logger.error("Order not found for Stripe webhook completion", {
+                    orderId,
+                    eventId: event.id,
+                });
                 return { message: "Order not found" };
+            }
+
+            if (!order.payment) {
+                logger.error(
+                    "Payment record not found for Stripe webhook completion order",
+                    {
+                        orderId,
+                        eventId: event.id,
+                    },
+                );
+                return { message: "Payment record not found" };
             }
 
             const result = await prisma.$transaction(async (tx) => {
@@ -498,36 +524,53 @@ const handleStripeWebhookEvent = async (
                 return { updatedPayment, updatedOrder };
             });
 
+            let invoiceMeta: {
+                secureUrl: string;
+                fileName: string;
+                buffer: Buffer;
+                publicId: string;
+            } | null = null;
+            const paidAt = result.updatedOrder.paidAt || new Date();
+            const invoicePayload = buildInvoicePayload(
+                order,
+                result.updatedPayment.id,
+                result.updatedPayment.transactionId,
+                paidAt,
+            );
+
             // Keep non-DB work outside the transaction to reduce lock duration.
             if (session.payment_status === "paid") {
                 try {
-                    await generateOrderInvoicePdf({
-                        invoiceId: result.updatedPayment.id,
-                        orderNumber: order.orderNumber,
-                        customerName: order.user.email,
-                        customerEmail: order.user.email,
-                        orderDate: order.createdAt.toISOString(),
-                        items: order.items.map((item) => ({
-                            productTitle:
-                                item.productTitleSnapshot || item.product.title,
-                            qty: item.qty,
-                            unitPrice: item.unitPriceAmount,
-                            lineTotal: item.lineTotalAmount,
-                        })),
-                        subtotal: order.subtotalAmount,
-                        discount: order.discountAmount,
-                        shipping: order.shippingAmount,
-                        giftAddon: order.giftAddonAmount,
-                        totalAmount: order.totalAmount,
-                        transactionId: result.updatedPayment.transactionId,
-                        paymentDate: new Date().toISOString(),
+                    invoiceMeta =
+                        await generateAndUploadOrderInvoicePdf(invoicePayload);
+
+                    await prisma.payment.update({
+                        where: { id: result.updatedPayment.id },
+                        data: {
+                            invoiceUrl: invoiceMeta.secureUrl,
+                            paymentGatewayData: {
+                                ...getJsonObject(
+                                    result.updatedPayment.paymentGatewayData,
+                                ),
+                                invoice: {
+                                    secureUrl: invoiceMeta.secureUrl,
+                                    publicId: invoiceMeta.publicId,
+                                    fileName: invoiceMeta.fileName,
+                                    generatedAt: new Date().toISOString(),
+                                },
+                            } as Prisma.InputJsonValue,
+                        },
                     });
 
-                    console.log(
-                        `✅ Invoice PDF generated for order ${orderId}`,
-                    );
+                    logger.info("Invoice PDF generated and uploaded", {
+                        orderId,
+                        invoiceUrl: invoiceMeta.secureUrl,
+                    });
                 } catch (pdfError) {
-                    console.error("❌ Error generating invoice PDF:", pdfError);
+                    logger.error("Error generating/uploading invoice PDF", {
+                        orderId,
+                        error: pdfError,
+                    });
                 }
             }
 
@@ -536,39 +579,66 @@ const handleStripeWebhookEvent = async (
                 try {
                     await sendEmail({
                         to: order.user.email,
-                        subject: `Order Confirmation - ${order.orderNumber}`,
+                        subject: `Payment Receipt - ${order.orderNumber}`,
                         templateName: "invoice",
                         templateData: {
-                            customerName: order.user.email,
-                            orderId: order.id,
+                            customerName: order.user.name || order.user.email,
+                            invoiceId: result.updatedPayment.id,
+                            transactionId: result.updatedPayment.transactionId,
+                            paymentDate: formatDateTimeForEmail(paidAt),
                             orderNumber: order.orderNumber,
+                            orderDate: formatDateTimeForEmail(order.createdAt),
+                            subtotal: order.subtotalAmount,
+                            discount: order.discountAmount,
+                            shipping: order.shippingAmount,
+                            giftAddon: order.giftAddonAmount,
                             totalAmount: order.totalAmount,
-                            orderDate: new Date(
-                                order.createdAt,
-                            ).toLocaleDateString(),
+                            items: invoicePayload.items,
+                            invoiceUrl: invoiceMeta?.secureUrl,
                         },
+                        attachments: invoiceMeta
+                            ? [
+                                  {
+                                      filename: invoiceMeta.fileName,
+                                      content: invoiceMeta.buffer,
+                                      contentType: "application/pdf",
+                                  },
+                              ]
+                            : undefined,
                     });
 
-                    console.log(
-                        `✅ Order confirmation email sent to ${order.user.email}`,
-                    );
+                    logger.info("Payment receipt email sent", {
+                        to: order.user.email,
+                        orderId,
+                    });
                 } catch (emailError) {
-                    console.error("❌ Error sending order email:", emailError);
+                    logger.error("Error sending payment receipt email", {
+                        orderId,
+                        error: emailError,
+                    });
                 }
             }
 
-            console.log(`✅ Stripe checkout completed for order ${orderId}`);
+            logger.info("Stripe checkout completed", { orderId });
             return result;
         }
 
         case "charge.failed": {
             const charge = event.data.object as Stripe.Charge;
-            console.log(`❌ Charge failed: ${charge.id}`);
+            logger.error("Stripe charge failed", {
+                eventId: event.id,
+                chargeId: charge.id,
+                amount: charge.amount,
+            });
             break;
         }
 
-        default:
-            console.log(`⚠️ Unhandled Stripe event type: ${event.type}`);
+        default: {
+            logger.warn("Unhandled Stripe event type", {
+                eventId: event.id,
+                eventType: event.type,
+            });
+        }
     }
 
     return { message: `Webhook event ${event.id} processed successfully` };

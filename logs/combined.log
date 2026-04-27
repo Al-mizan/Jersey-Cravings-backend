@@ -1,0 +1,9 @@
+{"level":"info","message":"Media cleanup worker started","schedule":"* * * * *","service":"jersey-cravings-backend","timestamp":"2026-04-27T09:24:46.868Z"}
+{"level":"info","message":"Media cleanup worker started","schedule":"* * * * *","service":"jersey-cravings-backend","timestamp":"2026-04-27T09:25:34.758Z"}
+{"error":{"code":"LIMIT_UNEXPECTED_FILE","field":"productPhotos","message":"Unexpected field","name":"MulterError","storageErrors":[]},"ip":"::1","level":"error","message":"Error from Global Error Handler","method":"PATCH","route":"/api/v1/customers/profile/me","service":"jersey-cravings-backend","timestamp":"2026-04-27T09:26:18.334Z"}
+{"level":"info","message":"Media cleanup worker started","schedule":"* * * * *","service":"jersey-cravings-backend","timestamp":"2026-04-27T09:28:09.993Z"}
+{"error":{"code":"LIMIT_UNEXPECTED_FILE","field":"productPhotos","message":"Unexpected field","name":"MulterError","storageErrors":[]},"ip":"::1","level":"error","message":"Error from Global Error Handler","method":"PATCH","route":"/api/v1/customers/profile/me","service":"jersey-cravings-backend","timestamp":"2026-04-27T09:32:44.863Z"}
+{"level":"info","message":"Media cleanup worker started","schedule":"* * * * *","service":"jersey-cravings-backend","timestamp":"2026-04-27T09:35:00.656Z"}
+{"level":"info","message":"Media cleanup worker started","schedule":"* * * * *","service":"jersey-cravings-backend","timestamp":"2026-04-27T09:35:25.848Z"}
+{"level":"info","message":"Media cleanup worker started","schedule":"* * * * *","service":"jersey-cravings-backend","timestamp":"2026-04-27T09:35:33.513Z"}
+{"error":{"code":"LIMIT_UNEXPECTED_FILE","field":"productPhotos","message":"Unexpected field","name":"MulterError","storageErrors":[]},"ip":"::1","level":"error","message":"Error from Global Error Handler","method":"PATCH","route":"/api/v1/customers/profile/me","service":"jersey-cravings-backend","timestamp":"2026-04-27T09:36:21.948Z"}

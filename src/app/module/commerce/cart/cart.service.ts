@@ -1,4 +1,5 @@
 import status from "http-status";
+import { ProductStatus } from "../../../../generated/prisma/enums";
 import AppError from "../../../errorHelpers/AppError";
 import { IRequestUser } from "../../../interface/requestUser.interface";
 import { prisma } from "../../../lib/prisma";
@@ -60,6 +61,13 @@ const addToCart = async (
 
         if (!variant || !variant.isActive || variant.product.isDeleted) {
             throw new AppError(status.NOT_FOUND, "Variant not found");
+        }
+
+        if (variant.product.status !== ProductStatus.ACTIVE) {
+            throw new AppError(
+                status.BAD_REQUEST,
+                "Only active products can be added to cart",
+            );
         }
 
         if (variant.stockQty < payload.qty) {

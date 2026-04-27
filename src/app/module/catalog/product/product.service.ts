@@ -10,7 +10,7 @@ import {
 import { IRequestUser } from "../../../interface/requestUser.interface";
 import { ProductStatus } from "../../../../generated/prisma/enums";
 import { logAudit } from "../../../shared/logAudit";
-
+import { isValidStatusTransition } from "./product.utils";
 
 const createProduct = async (
     payload: ICreateProductPayload,
@@ -211,14 +211,15 @@ const updateProduct = async (
     return updatedProduct;
 };
 
-const publishProduct = async (
-    id: string,
+const updateProductStatus = async (
+    productId: string,
+    newStatus: ProductStatus,
     user: IRequestUser,
     ipAddress?: string,
     userAgent?: string,
 ) => {
     const product = await prisma.product.findUnique({
-        where: { id },
+        where: { id: productId },
     });
 
     if (!product) {
@@ -229,29 +230,37 @@ const publishProduct = async (
         throw new AppError(status.NOT_FOUND, "Product has been deleted");
     }
 
-    if (product.status !== ProductStatus.DRAFT) {
+    if (product.status === newStatus) {
         throw new AppError(
             status.BAD_REQUEST,
-            "Only DRAFT products can be published",
+            `Product is already ${newStatus}`,
         );
     }
 
-    // Verify product has at least one variant
-    const variantCount = await prisma.productVariant.count({
-        where: { productId: id },
-    });
-
-    if (variantCount === 0) {
+    if (!isValidStatusTransition(product.status, newStatus)) {
         throw new AppError(
             status.BAD_REQUEST,
-            "Product must have at least one variant before publishing",
+            `Product cannot be moved from ${product.status} to ${newStatus}`,
         );
+    }
+
+    if (newStatus === ProductStatus.ACTIVE) {
+        const variantCount = await prisma.productVariant.count({
+            where: { productId },
+        });
+
+        if (variantCount === 0) {
+            throw new AppError(
+                status.BAD_REQUEST,
+                "Product must have at least one variant before setting ACTIVE",
+            );
+        }
     }
 
     const beforeState = { ...product };
-    const publishedProduct = await prisma.product.update({
-        where: { id },
-        data: { status: ProductStatus.ACTIVE },
+    const updatedProduct = await prisma.product.update({
+        where: { id: productId },
+        data: { status: newStatus },
         include: {
             category: true,
             variants: true,
@@ -263,65 +272,16 @@ const publishProduct = async (
     await logAudit({
         actorUserId: user.userId,
         actorRole: user.role,
-        action: "PUBLISH",
+        action: newStatus === ProductStatus.ACTIVE ? "PUBLISH" : "ARCHIVE",
         entityType: "Product",
-        entityId: id,
-        beforeState: { ...beforeState, status: product.status },
-        afterState: { ...publishedProduct, status: ProductStatus.ACTIVE },
-        ipAddress,
-        userAgent,
-    });
-
-    return publishedProduct;
-};
-
-const archiveProduct = async (
-    id: string,
-    user: IRequestUser,
-    ipAddress?: string,
-    userAgent?: string,
-) => {
-    const product = await prisma.product.findUnique({
-        where: { id },
-    });
-
-    if (!product) {
-        throw new AppError(status.NOT_FOUND, "Product not found");
-    }
-
-    if (product.isDeleted) {
-        throw new AppError(status.NOT_FOUND, "Product has been deleted");
-    }
-
-    if (product.status === ProductStatus.ARCHIVED) {
-        throw new AppError(status.BAD_REQUEST, "Product is already archived");
-    }
-
-    const beforeState = { ...product };
-    const archivedProduct = await prisma.product.update({
-        where: { id },
-        data: { status: ProductStatus.ARCHIVED },
-        include: {
-            category: true,
-            variants: true,
-            media: true,
-        },
-    });
-
-    // Audit log
-    await logAudit({
-        actorUserId: user.userId,
-        actorRole: user.role,
-        action: "ARCHIVE",
-        entityType: "Product",
-        entityId: id,
+        entityId: productId,
         beforeState,
-        afterState: { ...archivedProduct, status: ProductStatus.ARCHIVED },
+        afterState: { ...updatedProduct, status: newStatus },
         ipAddress,
         userAgent,
     });
 
-    return archivedProduct;
+    return updatedProduct;
 };
 
 const softDeleteProduct = async (
@@ -429,8 +389,7 @@ export const ProductService = {
     getAllProducts,
     getProductById,
     updateProduct,
-    publishProduct,
-    archiveProduct,
+    updateProductStatus,
     softDeleteProduct,
     restoreProduct,
 };
